@@ -38,7 +38,7 @@ class MexcPublicClient:
                 continue
         return items
 
-    async def candles(self, symbol: str, interval: str = "Min15", limit: int = 120) -> list[dict]:
+    async def candles(self, symbol: str, interval: str = "Min15", limit: int = 260) -> list[dict]:
         url = f"{self.base_url}/api/v1/contract/kline/{symbol}"
         params = {"interval": interval, "limit": limit}
         timeout = aiohttp.ClientTimeout(total=20)
@@ -48,14 +48,16 @@ class MexcPublicClient:
                 payload = await response.json()
 
         data = payload.get("data", {})
+        opens = data.get("open", [])
         closes = data.get("close", [])
         highs = data.get("high", [])
         lows = data.get("low", [])
         volumes = data.get("vol", [])
         result = []
-        for close, high, low, volume in zip(closes, highs, lows, volumes):
+        for open_price, close, high, low, volume in zip(opens, closes, highs, lows, volumes):
             result.append(
                 {
+                    "open": float(open_price),
                     "close": float(close),
                     "high": float(high),
                     "low": float(low),

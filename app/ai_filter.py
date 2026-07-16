@@ -34,6 +34,11 @@ class AiFilter:
             "tp1": signal.tp1,
             "tp2": signal.tp2,
             "reasons": signal.reasons,
+            "strategy": signal.strategy,
+            "market_regime": signal.market_regime,
+            "btc_context": signal.btc_context,
+            "timeframe_scores": signal.timeframe_scores,
+            "diagnostics": signal.diagnostics,
         }
 
     @staticmethod

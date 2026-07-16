@@ -51,7 +51,11 @@ def signal_text(signal: Signal) -> str:
     reasons = "\n".join(f"• {x}" for x in signal.reasons)
     return (
         f"{'🟢' if signal.side == 'LONG' else '🔴'} {signal.side} {signal.symbol}\n"
+        f"Стратегия: {signal.strategy}\n"
+        f"Режим рынка: {signal.market_regime}\n"
+        f"BTC-контекст: {signal.btc_context}\n"
         f"Оценка: {signal.score}/100\n"
+        f"Таймфреймы: {signal.timeframe_scores or {}}\n"
         f"ИИ: {signal.ai_decision}"
         f"{' — ' + signal.ai_summary if signal.ai_summary else ''}\n\n"
         f"Вход: {signal.entry:.8g}\nSL: {signal.stop_loss:.8g}\n"
@@ -92,7 +96,7 @@ async def send_scan(bot: Bot, chat_id: int, force: bool) -> None:
 async def menu(message: Message):
     if not allowed(message.from_user): return
     await message.answer(
-        f"MEXC AI Trader Pro v0.4.1\n"
+        f"MEXC AI Trader Pro v0.5.0\n"
         f"Режим: {settings.trading_mode}\n"
         f"CONFIRM: {'РАЗБЛОКИРОВАН' if settings.confirm_unlocked else 'заблокирован'}",
         reply_markup=main_menu(scan_running, settings.confirm_unlocked),

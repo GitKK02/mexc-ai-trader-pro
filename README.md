@@ -1,4 +1,4 @@
-# MEXC AI Trader Pro v0.4.1 — Execution Safety
+# MEXC AI Trader Pro v0.5.0 — AI Scanner Pro
 
 Реальные сделки по нескольким разрешённым фьючерсным парам с обязательным ручным подтверждением.
 
@@ -105,3 +105,18 @@ LIVE_MAX_LEVERAGE=1
 LIVE_MAX_TRADES_PER_DAY=1
 OPENAI_MODEL=gpt-4.1-mini
 ```
+
+
+## v0.5.0 AI Scanner Pro
+
+- анализ Min5, Min15, Min60 и Hour4;
+- EMA20/50/200, RSI, ATR, ADX, Bollinger width;
+- упрощённая структура HH/HL и LH/LL;
+- классификация TREND, RANGE, COMPRESSION, HIGH_VOLATILITY;
+- BTC-контекст;
+- взвешенное объединение таймфреймов;
+- параллельная загрузка данных;
+- OpenAI получает только лучшие кандидаты;
+- расширенные карточки сигналов.
+
+AUTO и Execution Engine этим патчем не меняются.

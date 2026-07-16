@@ -29,6 +29,11 @@ class Signal:
     reasons: list[str]
     ai_decision: str = "SKIPPED"
     ai_summary: str = ""
+    strategy: str = "Trend Pullback / Momentum"
+    market_regime: str = "UNKNOWN"
+    btc_context: str = "NEUTRAL"
+    timeframe_scores: dict[str, int] | None = None
+    diagnostics: dict[str, float | str] | None = None
 
 
 @dataclass(slots=True)

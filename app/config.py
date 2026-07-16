@@ -65,6 +65,19 @@ class Settings(BaseSettings):
     min_signal_score_paper: int = 70
     min_signal_score_confirm: int = 80
 
+    scanner_timeframes: str = "Min5,Min15,Min60,Hour4"
+    scanner_primary_timeframe: str = "Min15"
+    scanner_btc_context_enabled: bool = True
+    scanner_market_regime_enabled: bool = True
+    scanner_min_history_bars: int = 220
+    scanner_max_parallel_requests: int = 4
+    scanner_require_volume_confirmation: bool = False
+    scanner_min_relative_volume: float = 0.80
+    scanner_min_atr_percent: float = 0.20
+    scanner_max_atr_percent: float = 8.00
+    scanner_ai_only_top_n: int = 3
+    scanner_signal_expiration_seconds: int = 180
+
     database_path: str = "./data/trader.db"
     live_database_path: str = "./data/live_trader.db"
     log_level: str = "INFO"
@@ -79,6 +92,14 @@ class Settings(BaseSettings):
     @property
     def whitelist(self) -> set[str]:
         return {v.strip().upper() for v in self.symbol_whitelist.split(",") if v.strip()}
+
+    @property
+    def configured_timeframes(self) -> list[str]:
+        return [
+            value.strip()
+            for value in self.scanner_timeframes.split(",")
+            if value.strip()
+        ]
 
     @property
     def live_whitelist(self) -> set[str]:
