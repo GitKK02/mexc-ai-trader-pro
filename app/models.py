@@ -43,6 +43,11 @@ class Signal:
     decision_confidence: str = "LOW"
     decision_reasons: list[str] | None = None
     component_scores: dict[str, int] | None = None
+    volatility_state: str = "NORMAL"
+    liquidity_state: str = "NORMAL"
+    volatility_guard_allowed: bool | None = None
+    volatility_guard_multiplier: float = 1.0
+    volatility_guard_reasons: list[str] | None = None
 
 
 @dataclass(slots=True)

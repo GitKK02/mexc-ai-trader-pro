@@ -135,6 +135,19 @@ class Settings(BaseSettings):
     smart_risk_slippage_percent_round_trip: float = 0.06
     smart_risk_max_margin_usage_percent: float = 15.0
     smart_risk_reject_if_min_contract_exceeds_risk: bool = True
+
+    volatility_guard_enabled: bool = True
+    volatility_guard_panic_atr_percent: float = 5.0
+    volatility_guard_extreme_move_percent: float = 3.0
+    volatility_guard_max_spread_percent: float = 0.15
+    volatility_guard_min_relative_volume: float = 0.60
+    volatility_guard_low_liquidity_turnover_usdt: float = 20_000_000
+    volatility_guard_block_panic: bool = True
+    volatility_guard_block_low_liquidity: bool = True
+    volatility_guard_reduce_risk_high_vol_multiplier: float = 0.50
+    volatility_guard_reduce_risk_wide_spread_multiplier: float = 0.60
+    volatility_guard_reduce_risk_low_volume_multiplier: float = 0.70
+    volatility_guard_cooldown_minutes_after_panic: int = 30
     portfolio_correlation_groups: str = (
         "BTC:BTC_USDT;"
         "LARGE_CAP:ETH_USDT,BNB_USDT;"

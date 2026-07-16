@@ -1,11 +1,13 @@
 import asyncio
 import logging
+from decimal import Decimal
 
 from app.ai_filter import AiFilter
 from app.analyzer import analyze_timeframe, combine_timeframes
 from app.config import Settings
 from app.exchange import MexcPublicClient
 from app.models import Signal
+from app.volatility_guard import VolatilityLiquidityGuard
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +21,7 @@ class Scanner:
             settings.openai_model,
             settings.ai_enabled,
         )
+        self.volatility_guard = VolatilityLiquidityGuard(settings)
         self._semaphore = asyncio.Semaphore(
             settings.scanner_max_parallel_requests
         )
@@ -113,9 +116,26 @@ class Scanner:
                 for ticker in candidates
             ]
         )
-        signals = [
-            signal for signal in raw_signals if signal is not None
-        ]
+        ticker_map = {
+            ticker.symbol: ticker
+            for ticker in candidates
+        }
+        signals = []
+        for signal in raw_signals:
+            if signal is None:
+                continue
+            ticker = ticker_map.get(signal.symbol)
+            if ticker and self.settings.volatility_guard_enabled:
+                signal = self.volatility_guard.attach(
+                    signal,
+                    turnover_24h=Decimal(
+                        str(ticker.turnover_24h)
+                    ),
+                    spread_percent=Decimal(
+                        str(ticker.spread_percent)
+                    ),
+                )
+            signals.append(signal)
         signals.sort(key=lambda signal: signal.score, reverse=True)
 
         ai_limit = min(

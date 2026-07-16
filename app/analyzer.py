@@ -220,6 +220,7 @@ def combine_timeframes(
         "primary_adx": round(primary.adx, 2),
         "primary_atr_percent": round(primary.atr_percent, 3),
         "primary_relative_volume": round(primary.relative_volume, 2),
+        "primary_momentum_percent": round(primary.momentum_percent, 3),
     }
 
     return Signal(

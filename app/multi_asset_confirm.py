@@ -174,6 +174,68 @@ class MultiAssetConfirmService:
                 ),
                 spec,
             )
+            if signal.volatility_guard_allowed is False:
+                raise ValueError(
+                    "; ".join(
+                        signal.volatility_guard_reasons
+                        or ["Volatility Guard отклонил сделку"]
+                    )
+                )
+            guard_multiplier = Decimal(
+                str(signal.volatility_guard_multiplier or 1)
+            )
+            if guard_multiplier < 1:
+                smart.risk_percent *= guard_multiplier
+                smart.risk_budget_usdt *= guard_multiplier
+                smart.contracts = max(
+                    spec.min_vol,
+                    floor_step(
+                        smart.contracts * guard_multiplier,
+                        spec.vol_unit,
+                    ),
+                )
+                smart.notional_usdt = (
+                    current
+                    * spec.contract_size
+                    * smart.contracts
+                )
+                smart.required_margin_usdt = (
+                    smart.notional_usdt
+                    / Decimal(
+                        str(self.settings.live_max_leverage)
+                    )
+                )
+                smart.price_risk_usdt *= guard_multiplier
+                smart.estimated_costs_usdt = (
+                    smart.notional_usdt
+                    * (
+                        Decimal(
+                            str(
+                                self.settings
+                                .smart_risk_fee_percent_round_trip
+                            )
+                        )
+                        + Decimal(
+                            str(
+                                self.settings
+                                .smart_risk_slippage_percent_round_trip
+                            )
+                        )
+                    )
+                    / Decimal("100")
+                )
+                smart.estimated_max_loss_usdt = (
+                    smart.price_risk_usdt
+                    + smart.estimated_costs_usdt
+                )
+                smart.margin_usage_percent = (
+                    smart.required_margin_usdt
+                    / equity
+                    * Decimal("100")
+                )
+                smart.warnings.extend(
+                    signal.volatility_guard_reasons or []
+                )
             plan = build_trade_plan(
                 symbol=symbol,
                 side=signal.side,

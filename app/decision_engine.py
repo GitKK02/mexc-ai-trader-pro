@@ -155,6 +155,20 @@ class AIDecisionEngine:
             reasons.extend(signal.portfolio_reasons or [])
             reasons.append("Portfolio Manager запретил вход")
 
+        if signal.volatility_guard_allowed is False:
+            weighted = min(
+                weighted,
+                self.settings.decision_wait_score - 1,
+            )
+            reasons.extend(signal.volatility_guard_reasons or [])
+            reasons.append("Volatility Guard запретил вход")
+        elif signal.volatility_guard_multiplier < 1:
+            penalty = round(
+                (1 - signal.volatility_guard_multiplier) * 10
+            )
+            weighted -= penalty
+            reasons.extend(signal.volatility_guard_reasons or [])
+
         score = self._clamp(weighted)
 
         if (

@@ -76,6 +76,9 @@ def signal_text(signal: Signal) -> str:
         f"Portfolio score: {signal.portfolio_score if signal.portfolio_score is not None else '—'}\n"
         f"Decision score: {signal.decision_score if signal.decision_score is not None else '—'}\n"
         f"Решение: {signal.decision_action} ({signal.decision_confidence})\n"
+        f"Волатильность: {signal.volatility_state}\n"
+        f"Ликвидность: {signal.liquidity_state}\n"
+        f"Risk multiplier: {signal.volatility_guard_multiplier:.2f}x\n"
         f"Компоненты: {signal.component_scores or {}}\n"
         f"Группа: {signal.portfolio_group or '—'}\n"
         f"ИИ: {signal.ai_decision}"
@@ -161,7 +164,7 @@ async def send_scan(bot: Bot, chat_id: int, force: bool) -> None:
 async def menu(message: Message):
     if not allowed(message.from_user): return
     await message.answer(
-        f"MEXC AI Trader Pro v1.0.0\n"
+        f"MEXC AI Trader Pro v1.1.0\n"
         f"Режим: {settings.trading_mode}\n"
         f"CONFIRM: {'РАЗБЛОКИРОВАН' if settings.confirm_unlocked else 'заблокирован'}",
         reply_markup=main_menu(scan_running, settings.confirm_unlocked),
