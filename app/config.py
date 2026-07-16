@@ -160,6 +160,18 @@ class Settings(BaseSettings):
     market_regime_compression_penalty: int = 6
     market_regime_breakout_bonus: int = 10
     market_regime_block_new_entries_in_panic: bool = True
+
+    macro_guard_enabled: bool = True
+    macro_guard_calendar_path: str = "./data/macro_events.json"
+    macro_guard_block_minutes_before_high: int = 45
+    macro_guard_block_minutes_after_high: int = 30
+    macro_guard_wait_minutes_before_medium: int = 30
+    macro_guard_wait_minutes_after_medium: int = 15
+    macro_guard_high_impact_score: int = 80
+    macro_guard_medium_impact_score: int = 50
+    macro_guard_wait_risk_multiplier: float = 0.50
+    macro_guard_fail_closed: bool = False
+    macro_guard_max_events_display: int = 10
     portfolio_correlation_groups: str = (
         "BTC:BTC_USDT;"
         "LARGE_CAP:ETH_USDT,BNB_USDT;"

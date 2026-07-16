@@ -112,6 +112,13 @@ class MultiAssetConfirmService:
             raise ValueError("Оценка сигнала ниже CONFIRM-порога")
         if self.settings.market_regime_engine_enabled and signal.regime_allowed is False:
             raise ValueError("; ".join(signal.regime_reasons or ["Market Regime Engine отклонил вход"]))
+        if self.settings.macro_guard_enabled and signal.macro_guard_allowed is False:
+            raise ValueError(
+                "; ".join(
+                    signal.macro_guard_reasons
+                    or ["News & Macro Guard отклонил вход"]
+                )
+            )
 
         positions = await self.private.open_positions()
         if len(positions) >= self.settings.live_max_open_positions:
@@ -185,6 +192,8 @@ class MultiAssetConfirmService:
                 )
             guard_multiplier = Decimal(
                 str(signal.volatility_guard_multiplier or 1)
+            ) * Decimal(
+                str(signal.macro_guard_risk_multiplier or 1)
             )
             if guard_multiplier < 1:
                 smart.risk_percent *= guard_multiplier

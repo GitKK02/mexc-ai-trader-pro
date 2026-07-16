@@ -52,6 +52,10 @@ class Signal:
     regime_score_adjustment: int = 0
     regime_allowed: bool | None = None
     regime_reasons: list[str] | None = None
+    macro_guard_state: str = "SAFE"
+    macro_guard_allowed: bool | None = None
+    macro_guard_risk_multiplier: float = 1.0
+    macro_guard_reasons: list[str] | None = None
 
 
 @dataclass(slots=True)

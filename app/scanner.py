@@ -9,6 +9,7 @@ from app.exchange import MexcPublicClient
 from app.models import Signal
 from app.volatility_guard import VolatilityLiquidityGuard
 from app.market_regime import MarketRegimeEngine
+from app.macro_guard import NewsMacroGuard
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +25,7 @@ class Scanner:
         )
         self.volatility_guard = VolatilityLiquidityGuard(settings)
         self.market_regime_engine = MarketRegimeEngine(settings)
+        self.macro_guard = NewsMacroGuard(settings)
         self._semaphore = asyncio.Semaphore(
             settings.scanner_max_parallel_requests
         )
@@ -139,6 +141,8 @@ class Scanner:
                 )
             if self.settings.market_regime_engine_enabled:
                 signal = self.market_regime_engine.attach(signal)
+            if self.settings.macro_guard_enabled:
+                signal = self.macro_guard.attach(signal)
             signals.append(signal)
         signals.sort(key=lambda signal: signal.score, reverse=True)
 

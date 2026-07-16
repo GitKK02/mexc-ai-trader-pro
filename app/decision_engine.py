@@ -176,6 +176,18 @@ class AIDecisionEngine:
             weighted += int(signal.regime_score_adjustment or 0)
             reasons.extend(signal.regime_reasons or [])
 
+        if signal.macro_guard_allowed is False:
+            weighted = min(
+                weighted,
+                self.settings.decision_wait_score - 1,
+            )
+            reasons.extend(signal.macro_guard_reasons or [])
+            reasons.append("News & Macro Guard запретил вход")
+        elif signal.macro_guard_risk_multiplier < 1:
+            weighted -= 8
+            reasons.extend(signal.macro_guard_reasons or [])
+            reasons.append("Macro Guard уменьшил риск")
+
         score = self._clamp(weighted)
 
         if (

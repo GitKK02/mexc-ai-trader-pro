@@ -1,0 +1,11 @@
+[
+  {
+    "id": "example-fomc",
+    "title": "Example FOMC Decision",
+    "starts_at": "2030-01-01T19:00:00Z",
+    "impact_score": 100,
+    "category": "FOMC",
+    "symbols": ["ALL"],
+    "enabled": false
+  }
+]

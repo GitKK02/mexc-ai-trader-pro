@@ -18,6 +18,7 @@ from app.paper_engine import PaperEngine
 from app.portfolio_manager import PortfolioRiskManager
 from app.position_intelligence import DynamicPositionManager
 from app.position_actions import ConfirmedPositionActions
+from app.macro_guard import NewsMacroGuard
 from app.scanner import Scanner
 from app.telegram_ui import (
     confirm_plan_actions,
@@ -46,6 +47,7 @@ confirm_service = MultiAssetConfirmService(settings, live_db)
 portfolio_manager = PortfolioRiskManager(settings)
 decision_engine = AIDecisionEngine(settings)
 dynamic_position_manager = DynamicPositionManager(settings)
+macro_guard = NewsMacroGuard(settings)
 confirmed_position_actions = ConfirmedPositionActions(
     settings,
     confirm_service,
@@ -80,7 +82,9 @@ def signal_text(signal: Signal) -> str:
         f"Ликвидность: {signal.liquidity_state}\n"
         f"Режим 2.0: {signal.detailed_regime}\n"
         f"Regime adjustment: {signal.regime_score_adjustment:+d}\n"
-        f"Risk multiplier: {signal.volatility_guard_multiplier:.2f}x\n"
+        f"Macro Guard: {signal.macro_guard_state}\n"
+        f"Risk multiplier: "
+        f"{signal.volatility_guard_multiplier * signal.macro_guard_risk_multiplier:.2f}x\n"
         f"Компоненты: {signal.component_scores or {}}\n"
         f"Группа: {signal.portfolio_group or '—'}\n"
         f"ИИ: {signal.ai_decision}"
@@ -166,7 +170,7 @@ async def send_scan(bot: Bot, chat_id: int, force: bool) -> None:
 async def menu(message: Message):
     if not allowed(message.from_user): return
     await message.answer(
-        f"MEXC AI Trader Pro v1.2.0\n"
+        f"MEXC AI Trader Pro v1.3.0\n"
         f"Режим: {settings.trading_mode}\n"
         f"CONFIRM: {'РАЗБЛОКИРОВАН' if settings.confirm_unlocked else 'заблокирован'}",
         reply_markup=main_menu(scan_running, settings.confirm_unlocked),
@@ -732,6 +736,51 @@ async def regimes_status(message: Message):
     await message.answer("\n\n".join(blocks))
 
 
+@dispatcher.message(Command("macro"))
+async def macro_status(message: Message):
+    if not allowed(message.from_user):
+        return
+    result = macro_guard.evaluate(symbol="BTC_USDT")
+    reasons = "\n".join(
+        f"• {reason}" for reason in result.reasons
+    ) or "Активных блокировок нет"
+    await message.answer(
+        f"🗓 News & Macro Guard\n"
+        f"Состояние: {result.state}\n"
+        f"Новые сделки: "
+        f"{'РАЗРЕШЕНЫ' if result.allowed else 'ЗАБЛОКИРОВАНЫ'}\n"
+        f"Risk multiplier: {result.risk_multiplier}x\n\n"
+        f"{reasons}"
+    )
+
+
+@dispatcher.message(Command("macro_events"))
+async def macro_events(message: Message):
+    if not allowed(message.from_user):
+        return
+    try:
+        events = macro_guard.upcoming(
+            limit=settings.macro_guard_max_events_display
+        )
+    except Exception:
+        logger.exception("macro events failed")
+        await message.answer("Не удалось прочитать календарь.")
+        return
+    if not events:
+        await message.answer("Будущих событий нет.")
+        return
+    await message.answer(
+        "\n\n".join(
+            f"{event.title}\n"
+            f"{event.starts_at.isoformat()}\n"
+            f"Impact: {event.impact_score}\n"
+            f"Category: {event.category}\n"
+            f"Symbols: {', '.join(event.symbols)}"
+            for event in events
+        )
+    )
+
+
 @dispatcher.message(Command("status"))
 @dispatcher.message(F.text == "📊 Статус")
 async def status(message: Message):
@@ -892,6 +941,8 @@ async def main():
         BotCommand(command="confirm_position", description="Подтвердить действие"),
         BotCommand(command="position_actions_log", description="Журнал действий"),
         BotCommand(command="regimes", description="Режимы рынка"),
+        BotCommand(command="macro", description="Статус Macro Guard"),
+        BotCommand(command="macro_events", description="Ближайшие события"),
         BotCommand(command="confirm_trade", description="Подтвердить LIVE-сделку"),
     ])
     asyncio.create_task(auto_scan_loop(bot))
