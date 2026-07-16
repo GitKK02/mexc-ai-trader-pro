@@ -38,6 +38,11 @@ class Signal:
     portfolio_allowed: bool | None = None
     portfolio_group: str = ""
     portfolio_reasons: list[str] | None = None
+    decision_score: int | None = None
+    decision_action: str = "WAIT"
+    decision_confidence: str = "LOW"
+    decision_reasons: list[str] | None = None
+    component_scores: dict[str, int] | None = None
 
 
 @dataclass(slots=True)

@@ -10,6 +10,7 @@ from aiogram.types import BotCommand, CallbackQuery, Message
 
 from app.config import settings
 from app.database import Database
+from app.decision_engine import AIDecisionEngine
 from app.live_database import LiveDatabase
 from app.models import Signal
 from app.multi_asset_confirm import MultiAssetConfirmService
@@ -37,6 +38,7 @@ paper = PaperEngine(settings, paper_db)
 live_db = LiveDatabase(settings.live_database_path)
 confirm_service = MultiAssetConfirmService(settings, live_db)
 portfolio_manager = PortfolioRiskManager(settings)
+decision_engine = AIDecisionEngine(settings)
 
 scan_running = settings.auto_scan_on_start
 last_signals: list[Signal] = []
@@ -60,6 +62,9 @@ def signal_text(signal: Signal) -> str:
         f"Оценка: {signal.score}/100\n"
         f"Таймфреймы: {signal.timeframe_scores or {}}\n"
         f"Portfolio score: {signal.portfolio_score if signal.portfolio_score is not None else '—'}\n"
+        f"Decision score: {signal.decision_score if signal.decision_score is not None else '—'}\n"
+        f"Решение: {signal.decision_action} ({signal.decision_confidence})\n"
+        f"Компоненты: {signal.component_scores or {}}\n"
         f"Группа: {signal.portfolio_group or '—'}\n"
         f"ИИ: {signal.ai_decision}"
         f"{' — ' + signal.ai_summary if signal.ai_summary else ''}\n\n"
@@ -113,6 +118,8 @@ async def send_scan(bot: Bot, chat_id: int, force: bool) -> None:
         logger.exception("portfolio snapshot failed")
         positions = []
     signals = attach_portfolio_scores(signals, positions)
+    if settings.decision_engine_enabled:
+        signals = decision_engine.rank(signals)
     last_signals = signals
     if not signals:
         await bot.send_message(chat_id, "Подходящих сигналов нет.")
@@ -142,7 +149,7 @@ async def send_scan(bot: Bot, chat_id: int, force: bool) -> None:
 async def menu(message: Message):
     if not allowed(message.from_user): return
     await message.answer(
-        f"MEXC AI Trader Pro v0.6.0\n"
+        f"MEXC AI Trader Pro v0.7.0\n"
         f"Режим: {settings.trading_mode}\n"
         f"CONFIRM: {'РАЗБЛОКИРОВАН' if settings.confirm_unlocked else 'заблокирован'}",
         reply_markup=main_menu(scan_running, settings.confirm_unlocked),
@@ -170,6 +177,16 @@ async def confirm_prepare(callback: CallbackQuery):
     signal = pending_signals.get(token)
     if not signal:
         await callback.answer("Сигнал устарел", show_alert=True); return
+    if (
+        settings.decision_engine_enabled
+        and signal.decision_action not in {"ENTER", "CONFIRM"}
+    ):
+        await callback.answer(
+            f"Decision Engine: {signal.decision_action}. "
+            "Реальная подготовка заблокирована.",
+            show_alert=True,
+        )
+        return
     try:
         plan = await confirm_service.prepare(signal)
     except Exception as exc:
@@ -349,6 +366,8 @@ async def top_signals(message: Message):
             f"{index}. {verdict} {signal.symbol} {signal.side}\n"
             f"Scanner: {signal.score}/100 | "
             f"Portfolio: {signal.portfolio_score if signal.portfolio_score is not None else '—'}/100\n"
+            f"Decision: {signal.decision_score if signal.decision_score is not None else '—'}/100 "
+            f"— {signal.decision_action}\n"
             f"Группа: {signal.portfolio_group or 'OTHER'}"
         )
     await message.answer("\n\n".join(rows))
@@ -417,6 +436,32 @@ async def risk_status(message: Message):
         f"Минимальный Portfolio score: "
         f"{settings.portfolio_min_adjusted_score_confirm}"
     )
+
+
+@dispatcher.message(Command("decisions"))
+async def decisions_status(message: Message):
+    if not allowed(message.from_user):
+        return
+    if not last_signals:
+        await message.answer(
+            "Решений пока нет. Сначала запусти сканирование."
+        )
+        return
+
+    blocks = []
+    for signal in last_signals[: settings.portfolio_top_limit]:
+        reasons = "\n".join(
+            f"• {reason}"
+            for reason in (signal.decision_reasons or [])[:5]
+        )
+        blocks.append(
+            f"{signal.symbol} {signal.side}\n"
+            f"{signal.decision_action} — "
+            f"{signal.decision_score}/100 "
+            f"({signal.decision_confidence})\n"
+            f"{reasons}"
+        )
+    await message.answer("\n\n".join(blocks))
 
 
 @dispatcher.message(Command("status"))
@@ -492,6 +537,7 @@ async def main():
         BotCommand(command="portfolio", description="LIVE-портфель"),
         BotCommand(command="top", description="Рейтинг сигналов"),
         BotCommand(command="risk", description="Лимиты риска"),
+        BotCommand(command="decisions", description="Решения AI Engine"),
         BotCommand(command="confirm_trade", description="Подтвердить LIVE-сделку"),
     ])
     asyncio.create_task(auto_scan_loop(bot))

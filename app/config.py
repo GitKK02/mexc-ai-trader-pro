@@ -88,6 +88,20 @@ class Settings(BaseSettings):
     portfolio_reduce_score_same_group: int = 15
     portfolio_block_same_symbol: bool = True
     portfolio_top_limit: int = 10
+
+    decision_engine_enabled: bool = True
+    decision_enter_score: int = 90
+    decision_confirm_score: int = 82
+    decision_wait_score: int = 72
+    decision_require_ai_for_enter: bool = True
+    decision_block_on_ai_error: bool = False
+    decision_ai_approve_bonus: int = 6
+    decision_ai_wait_penalty: int = 6
+    decision_ai_reject_penalty: int = 30
+    decision_trend_regime_bonus: int = 5
+    decision_range_regime_penalty: int = 8
+    decision_unstable_btc_penalty: int = 12
+    decision_min_timeframe_agreement: int = 3
     portfolio_correlation_groups: str = (
         "BTC:BTC_USDT;"
         "LARGE_CAP:ETH_USDT,BNB_USDT;"
