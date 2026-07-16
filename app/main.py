@@ -20,6 +20,7 @@ from app.position_intelligence import DynamicPositionManager
 from app.position_actions import ConfirmedPositionActions
 from app.macro_guard import NewsMacroGuard
 from app.scanner import Scanner
+from app.scanner_watchlist import ScannerWatchlist
 from app.telegram_ui import (
     confirm_plan_actions,
     live_position_actions,
@@ -40,6 +41,7 @@ logger = logging.getLogger(__name__)
 
 dispatcher = Dispatcher()
 scanner = Scanner(settings)
+scanner_watchlist = ScannerWatchlist(settings)
 paper_db = Database(settings.database_path)
 paper = PaperEngine(settings, paper_db)
 live_db = LiveDatabase(settings.live_database_path)
@@ -56,6 +58,7 @@ position_action_pending: dict[str, tuple[object, datetime, bool]] = {}
 
 scan_running = settings.auto_scan_on_start
 last_signals: list[Signal] = []
+last_near_signals: list[Signal] = []
 pending_signals: dict[str, Signal] = {}
 confirm_pending: dict[str, tuple[object, Signal, datetime, bool]] = {}
 sent_cache: dict[str, datetime] = {}
@@ -95,6 +98,29 @@ def signal_text(signal: Signal) -> str:
     )
 
 
+
+def near_signal_text(signal: Signal) -> str:
+    reasons = "\n".join(
+        f"• {reason}" for reason in signal.reasons[:5]
+    )
+    delta = (
+        f"+{signal.watchlist_delta}"
+        if signal.watchlist_delta > 0
+        else str(signal.watchlist_delta)
+    )
+    return (
+        f"🔥 {signal.symbol} {signal.side}\n"
+        f"Scanner score: {signal.score}/100\n"
+        f"До основного порога: {signal.missing_points} пунктов\n"
+        f"Динамика: {delta} | streak={signal.watchlist_streak}\n"
+        f"Статус: {signal.watchlist_status}\n"
+        f"Режим: {signal.detailed_regime}\n"
+        f"Macro: {signal.macro_guard_state}\n"
+        f"Волатильность: {signal.volatility_state}\n\n"
+        f"Наблюдения:\n{reasons}"
+    )
+
+
 async def live_portfolio_snapshot():
     if not settings.confirm_unlocked:
         return [], 0.0
@@ -131,7 +157,7 @@ def attach_portfolio_scores(
 
 
 async def send_scan(bot: Bot, chat_id: int, force: bool) -> None:
-    global last_signals
+    global last_signals, last_near_signals
     signals = await scanner.run_once()
     try:
         positions, _equity = await live_portfolio_snapshot()
@@ -142,8 +168,38 @@ async def send_scan(bot: Bot, chat_id: int, force: bool) -> None:
     if settings.decision_engine_enabled:
         signals = decision_engine.rank(signals)
     last_signals = signals
+
+    near = scanner.near_signals
+    if settings.scanner_watchlist_enabled:
+        entries = scanner_watchlist.update(
+            [*near, *signals]
+        )
+        last_near_signals = [
+            entry.signal
+            for entry in entries
+            if entry.signal.score
+            < settings.min_signal_score_paper
+        ]
+    else:
+        last_near_signals = near
+
     if not signals:
-        await bot.send_message(chat_id, "Подходящих сигналов нет.")
+        if last_near_signals:
+            best = last_near_signals[0]
+            await bot.send_message(
+                chat_id,
+                "Готовых сигналов пока нет. "
+                f"В watchlist: {len(last_near_signals)}. "
+                f"Лучший кандидат: {best.symbol} "
+                f"{best.score}/100 — не хватает "
+                f"{best.missing_points} пунктов. "
+                "Открой «🔥 Почти готово»."
+            )
+        else:
+            await bot.send_message(
+                chat_id,
+                "Готовых и близких сигналов сейчас нет."
+            )
         return
     now = datetime.now(timezone.utc)
     sent = 0
@@ -170,7 +226,7 @@ async def send_scan(bot: Bot, chat_id: int, force: bool) -> None:
 async def menu(message: Message):
     if not allowed(message.from_user): return
     await message.answer(
-        f"MEXC AI Trader Pro v1.3.0\n"
+        f"MEXC AI Trader Pro v1.3.1\n"
         f"Режим: {settings.trading_mode}\n"
         f"CONFIRM: {'РАЗБЛОКИРОВАН' if settings.confirm_unlocked else 'заблокирован'}",
         reply_markup=main_menu(scan_running, settings.confirm_unlocked),
@@ -781,6 +837,58 @@ async def macro_events(message: Message):
     )
 
 
+@dispatcher.message(Command("near"))
+@dispatcher.message(F.text == "🔥 Почти готово")
+async def near_signals(message: Message):
+    if not allowed(message.from_user):
+        return
+    if not last_near_signals:
+        await message.answer(
+            "Близких сигналов пока нет. Запусти сканирование."
+        )
+        return
+
+    selected = last_near_signals[
+        : settings.scanner_near_display_limit
+    ]
+    await message.answer(
+        "\n\n".join(
+            near_signal_text(signal)
+            for signal in selected
+        )
+    )
+
+
+@dispatcher.message(Command("watchlist"))
+@dispatcher.message(F.text == "👀 Watchlist")
+async def watchlist_status(message: Message):
+    if not allowed(message.from_user):
+        return
+    entries = scanner_watchlist.entries()
+    if not entries:
+        await message.answer(
+            "Watchlist пуст. Запусти минимум один скан."
+        )
+        return
+
+    rows = []
+    for index, entry in enumerate(
+        entries[: settings.scanner_watchlist_display_limit],
+        start=1,
+    ):
+        delta = (
+            f"+{entry.delta}"
+            if entry.delta > 0
+            else str(entry.delta)
+        )
+        rows.append(
+            f"{index}. {entry.symbol} {entry.side}\n"
+            f"Score: {entry.score}/100 | Δ {delta}\n"
+            f"Streak: {entry.streak} | {entry.status}"
+        )
+    await message.answer("\n\n".join(rows))
+
+
 @dispatcher.message(Command("status"))
 @dispatcher.message(F.text == "📊 Статус")
 async def status(message: Message):
@@ -943,6 +1051,8 @@ async def main():
         BotCommand(command="regimes", description="Режимы рынка"),
         BotCommand(command="macro", description="Статус Macro Guard"),
         BotCommand(command="macro_events", description="Ближайшие события"),
+        BotCommand(command="near", description="Почти готовые сигналы"),
+        BotCommand(command="watchlist", description="Watchlist сканера"),
         BotCommand(command="confirm_trade", description="Подтвердить LIVE-сделку"),
     ])
     asyncio.create_task(auto_scan_loop(bot))

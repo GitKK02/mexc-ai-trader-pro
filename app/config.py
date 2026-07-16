@@ -172,6 +172,15 @@ class Settings(BaseSettings):
     macro_guard_wait_risk_multiplier: float = 0.50
     macro_guard_fail_closed: bool = False
     macro_guard_max_events_display: int = 10
+
+    scanner_near_signal_score: int = 58
+    scanner_watchlist_enabled: bool = True
+    scanner_watchlist_max_items: int = 30
+    scanner_watchlist_ttl_minutes: int = 180
+    scanner_watchlist_promotion_delta: int = 5
+    scanner_watchlist_min_streak: int = 2
+    scanner_near_display_limit: int = 10
+    scanner_watchlist_display_limit: int = 15
     portfolio_correlation_groups: str = (
         "BTC:BTC_USDT;"
         "LARGE_CAP:ETH_USDT,BNB_USDT;"

@@ -56,6 +56,11 @@ class Signal:
     macro_guard_allowed: bool | None = None
     macro_guard_risk_multiplier: float = 1.0
     macro_guard_reasons: list[str] | None = None
+    near_signal: bool = False
+    missing_points: int = 0
+    watchlist_delta: int = 0
+    watchlist_streak: int = 1
+    watchlist_status: str = "NEW"
 
 
 @dataclass(slots=True)

@@ -1,4 +1,4 @@
-# MEXC AI Trader Pro v1.3.0 — News & Macro Guard
+# MEXC AI Trader Pro v1.3.1 — Scanner Watchlist & Near Signals
 
 Реальные сделки по нескольким разрешённым фьючерсным парам с обязательным ручным подтверждением.
 
@@ -242,3 +242,22 @@ mkdir -p data
 cp docs/examples/macro_events.example.json data/macro_events.json
 nano data/macro_events.json
 ```
+
+
+## v1.3.1 Scanner Watchlist & Near Signals
+
+Сканер больше не забывает кандидатов, которые немного не достигли
+основного порога.
+
+Добавлено:
+
+- отдельный минимальный порог near signals;
+- watchlist между циклами сканирования;
+- динамика score;
+- streak последовательных обнаружений;
+- статусы WATCHING, IMPROVING, RISING, WEAKENING и READY;
+- команды `/near` и `/watchlist`;
+- кнопки `🔥 Почти готово` и `👀 Watchlist`.
+
+LIVE-порог и защитные фильтры не снижены. Near signal нельзя подготовить
+к реальной сделке, пока он не станет полноценным сигналом.

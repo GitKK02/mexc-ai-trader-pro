@@ -26,6 +26,8 @@ class Scanner:
         self.volatility_guard = VolatilityLiquidityGuard(settings)
         self.market_regime_engine = MarketRegimeEngine(settings)
         self.macro_guard = NewsMacroGuard(settings)
+        self.near_signals: list[Signal] = []
+        self.all_candidates: list[Signal] = []
         self._semaphore = asyncio.Semaphore(
             settings.scanner_max_parallel_requests
         )
@@ -94,8 +96,15 @@ class Scanner:
         signal = combine_timeframes(symbol, analyses, btc_context)
         if signal is None:
             return None
-        if signal.score < self.settings.min_signal_score_paper:
+        if signal.score < self.settings.scanner_near_signal_score:
             return None
+        signal.near_signal = (
+            signal.score < self.settings.min_signal_score_paper
+        )
+        signal.missing_points = max(
+            0,
+            self.settings.min_signal_score_paper - signal.score,
+        )
         return signal
 
     async def run_once(self) -> list[Signal]:
@@ -145,12 +154,25 @@ class Scanner:
                 signal = self.macro_guard.attach(signal)
             signals.append(signal)
         signals.sort(key=lambda signal: signal.score, reverse=True)
+        self.all_candidates = signals
+        qualified = [
+            signal
+            for signal in signals
+            if signal.score >= self.settings.min_signal_score_paper
+        ]
+        self.near_signals = [
+            signal
+            for signal in signals
+            if self.settings.scanner_near_signal_score
+            <= signal.score
+            < self.settings.min_signal_score_paper
+        ]
 
         ai_limit = min(
             self.settings.scanner_ai_only_top_n,
             self.settings.max_ai_candidates,
         )
-        for signal in signals[:ai_limit]:
+        for signal in qualified[:ai_limit]:
             await self.ai.review(signal)
 
-        return signals[: self.settings.max_signals_per_cycle]
+        return qualified[: self.settings.max_signals_per_cycle]
