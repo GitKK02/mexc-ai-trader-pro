@@ -1,0 +1,97 @@
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    telegram_bot_token: str = "TEST_TOKEN"
+    telegram_allowed_user_ids: str = "1"
+
+    mexc_api_key: str = ""
+    mexc_api_secret: str = ""
+    mexc_base_url: str = "https://api.mexc.com"
+    mexc_recv_window_seconds: int = 10
+
+    openai_api_key: str = ""
+    openai_model: str = "gpt-5-mini"
+    ai_enabled: bool = True
+    ai_fail_mode: str = "SAFE"
+
+    trading_mode: str = "PAPER"  # PAPER | CONFIRM
+    enable_live_trading: bool = False
+    live_trading_ack: str = ""
+    live_confirm_code: str = ""
+    confirmation_ttl_seconds: int = 90
+
+    live_symbol_whitelist: str = "BTC_USDT,ETH_USDT,SOL_USDT,LINK_USDT"
+    live_risk_per_trade_percent: float = 0.10
+    live_max_risk_per_trade_percent: float = 0.25
+    live_max_notional_usdt: float = 100.0
+    live_max_open_positions: int = 2
+    live_max_leverage: int = 2
+    live_open_type: int = 1
+    live_position_mode: int = 1
+    live_stop_atr_multiplier: float = 1.5
+    live_take_profit_r: float = 2.0
+    live_max_entry_deviation_percent: float = 0.20
+    live_daily_loss_limit_usdt: float = 10.0
+    live_max_trades_per_day: int = 4
+    live_min_contract_risk_usdt: float = 0.01
+
+    paper_initial_balance_usdt: float = 10_000.0
+    paper_taker_fee_percent: float = 0.055
+    paper_slippage_percent: float = 0.03
+    paper_price_poll_seconds: int = 10
+    max_positions: int = 2
+
+    risk_per_trade_percent: float = 0.5
+    max_leverage: int = 3
+    min_risk_reward: float = 2.0
+    tp1_r: float = 1.0
+    tp1_close_percent: float = 35.0
+    tp2_r: float = 2.0
+    tp2_close_percent: float = 35.0
+    runner_percent: float = 30.0
+    breakeven_buffer_percent: float = 0.03
+    trailing_atr_multiplier: float = 1.8
+
+    auto_scan_on_start: bool = False
+    scan_interval_seconds: int = 300
+    min_24h_turnover_usdt: float = 50_000_000
+    max_spread_percent: float = 0.12
+    max_deep_candidates: int = 10
+    max_ai_candidates: int = 3
+    max_signals_per_cycle: int = 3
+    signal_cooldown_minutes: int = 60
+    symbol_whitelist: str = "BTC_USDT,ETH_USDT,SOL_USDT,LINK_USDT"
+    min_signal_score_paper: int = 70
+    min_signal_score_confirm: int = 80
+
+    database_path: str = "./data/trader.db"
+    live_database_path: str = "./data/live_trader.db"
+    log_level: str = "INFO"
+    timezone: str = "Europe/Moscow"
+
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
+    @property
+    def allowed_user_ids(self) -> set[int]:
+        return {int(v.strip()) for v in self.telegram_allowed_user_ids.split(",") if v.strip().isdigit()}
+
+    @property
+    def whitelist(self) -> set[str]:
+        return {v.strip().upper() for v in self.symbol_whitelist.split(",") if v.strip()}
+
+    @property
+    def live_whitelist(self) -> set[str]:
+        return {v.strip().upper() for v in self.live_symbol_whitelist.split(",") if v.strip()}
+
+    @property
+    def confirm_unlocked(self) -> bool:
+        return (
+            self.trading_mode.upper() == "CONFIRM"
+            and self.enable_live_trading
+            and self.live_trading_ack == "I_UNDERSTAND_REAL_ORDERS"
+            and len(self.live_confirm_code) >= 6
+        )
+
+
+settings = Settings()
