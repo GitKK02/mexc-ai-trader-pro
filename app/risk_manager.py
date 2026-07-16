@@ -27,6 +27,12 @@ class TradePlan:
     stop_loss: Decimal
     take_profit: Decimal
     leverage: int
+    required_margin_usdt: Decimal = Decimal("0")
+    estimated_costs_usdt: Decimal = Decimal("0")
+    estimated_max_loss_usdt: Decimal = Decimal("0")
+    risk_percent: Decimal = Decimal("0")
+    margin_usage_percent: Decimal = Decimal("0")
+    smart_risk_warnings: list[str] | None = None
 
 
 def floor_step(value: Decimal, step: Decimal) -> Decimal:

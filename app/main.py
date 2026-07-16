@@ -161,7 +161,7 @@ async def send_scan(bot: Bot, chat_id: int, force: bool) -> None:
 async def menu(message: Message):
     if not allowed(message.from_user): return
     await message.answer(
-        f"MEXC AI Trader Pro v0.9.0\n"
+        f"MEXC AI Trader Pro v1.0.0\n"
         f"Режим: {settings.trading_mode}\n"
         f"CONFIRM: {'РАЗБЛОКИРОВАН' if settings.confirm_unlocked else 'заблокирован'}",
         reply_markup=main_menu(scan_running, settings.confirm_unlocked),
@@ -212,10 +212,17 @@ async def confirm_prepare(callback: CallbackQuery):
         f"Контрактов: {plan.contracts}\n"
         f"Contract size: {plan.contract_size}\n"
         f"Номинал: {plan.notional_usdt:.2f} USDT\n"
+        f"Маржа: {plan.required_margin_usdt:.2f} USDT "
+        f"({plan.margin_usage_percent:.2f}% equity)\n"
         f"Риск по SL: {plan.risk_usdt:.2f} USDT\n"
+        f"Расходы: {plan.estimated_costs_usdt:.2f} USDT\n"
+        f"Оценочный max loss: {plan.estimated_max_loss_usdt:.2f} USDT\n"
+        f"Smart risk: {plan.risk_percent:.3f}% equity\n"
         f"Плечо: {plan.leverage}x\n"
         f"SL: {plan.stop_loss}\n"
-        f"TP: {plan.take_profit}\n\n"
+        f"TP: {plan.take_profit}\n"
+        f"Предупреждения: "
+        f"{'; '.join(plan.smart_risk_warnings or []) or 'нет'}\n\n"
         f"Проверь параметры. После первой кнопки потребуется:\n"
         f"/confirm_trade {settings.live_confirm_code}",
         reply_markup=confirm_plan_actions(plan_token),

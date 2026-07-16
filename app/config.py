@@ -120,6 +120,21 @@ class Settings(BaseSettings):
     position_actions_breakeven_buffer_percent: float = 0.03
     position_actions_min_r_for_breakeven: float = 1.0
     position_actions_require_existing_stop: bool = True
+
+    smart_risk_enabled: bool = True
+    smart_risk_base_percent: float = 0.10
+    smart_risk_min_percent: float = 0.03
+    smart_risk_max_percent: float = 0.25
+    smart_risk_low_vol_atr_percent: float = 0.60
+    smart_risk_high_vol_atr_percent: float = 2.50
+    smart_risk_low_vol_multiplier: float = 1.10
+    smart_risk_normal_vol_multiplier: float = 1.00
+    smart_risk_high_vol_multiplier: float = 0.60
+    smart_risk_extreme_vol_multiplier: float = 0.35
+    smart_risk_fee_percent_round_trip: float = 0.11
+    smart_risk_slippage_percent_round_trip: float = 0.06
+    smart_risk_max_margin_usage_percent: float = 15.0
+    smart_risk_reject_if_min_contract_exceeds_risk: bool = True
     portfolio_correlation_groups: str = (
         "BTC:BTC_USDT;"
         "LARGE_CAP:ETH_USDT,BNB_USDT;"

@@ -7,6 +7,7 @@ import aiohttp
 from app.live_exchange import MexcPrivateClient
 from app.risk_manager import ContractSpec, TradePlan, build_trade_plan
 from app.portfolio_manager import PortfolioRiskManager
+from app.smart_risk import SmartRiskEngine, SmartRiskRequest
 
 
 def floor_step(value: Decimal, step: Decimal) -> Decimal:
@@ -18,6 +19,7 @@ class MultiAssetConfirmService:
         self.settings = settings
         self.db = live_db
         self.portfolio = PortfolioRiskManager(settings)
+        self.smart_risk = SmartRiskEngine(settings)
         self.private = MexcPrivateClient(
             settings.mexc_base_url,
             settings.mexc_api_key,
@@ -154,6 +156,45 @@ class MultiAssetConfirmService:
             raise ValueError(
                 f"Цена ушла от сигнала на {deviation:.3f}%"
             )
+
+        if self.settings.smart_risk_enabled:
+            atr_percent = Decimal(str(
+                (signal.diagnostics or {}).get("primary_atr_percent", 0)
+            ))
+            smart = self.smart_risk.calculate(
+                SmartRiskRequest(
+                    equity_usdt=equity,
+                    entry_price=current,
+                    stop_loss_price=Decimal(str(signal.stop_loss)),
+                    atr_percent=atr_percent,
+                    leverage=self.settings.live_max_leverage,
+                    max_notional_usdt=Decimal(
+                        str(self.settings.live_max_notional_usdt)
+                    ),
+                ),
+                spec,
+            )
+            plan = build_trade_plan(
+                symbol=symbol,
+                side=signal.side,
+                price=current,
+                raw_stop=Decimal(str(signal.stop_loss)),
+                equity_usdt=equity,
+                risk_percent=smart.risk_percent,
+                max_notional_usdt=smart.notional_usdt,
+                leverage=self.settings.live_max_leverage,
+                take_profit_r=Decimal(
+                    str(self.settings.live_take_profit_r)
+                ),
+                spec=spec,
+            )
+            plan.required_margin_usdt = smart.required_margin_usdt
+            plan.estimated_costs_usdt = smart.estimated_costs_usdt
+            plan.estimated_max_loss_usdt = smart.estimated_max_loss_usdt
+            plan.risk_percent = smart.risk_percent
+            plan.margin_usage_percent = smart.margin_usage_percent
+            plan.smart_risk_warnings = smart.warnings
+            return plan
 
         return build_trade_plan(
             symbol=symbol,
