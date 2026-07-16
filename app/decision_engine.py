@@ -168,6 +168,13 @@ class AIDecisionEngine:
             )
             weighted -= penalty
             reasons.extend(signal.volatility_guard_reasons or [])
+        if signal.regime_allowed is False:
+            weighted = min(weighted, self.settings.decision_wait_score - 1)
+            reasons.extend(signal.regime_reasons or [])
+            reasons.append("Market Regime Engine запретил вход")
+        else:
+            weighted += int(signal.regime_score_adjustment or 0)
+            reasons.extend(signal.regime_reasons or [])
 
         score = self._clamp(weighted)
 

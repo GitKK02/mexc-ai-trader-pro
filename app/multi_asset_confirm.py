@@ -110,6 +110,8 @@ class MultiAssetConfirmService:
             raise ValueError("Пара не входит в LIVE whitelist")
         if signal.score < self.settings.min_signal_score_confirm:
             raise ValueError("Оценка сигнала ниже CONFIRM-порога")
+        if self.settings.market_regime_engine_enabled and signal.regime_allowed is False:
+            raise ValueError("; ".join(signal.regime_reasons or ["Market Regime Engine отклонил вход"]))
 
         positions = await self.private.open_positions()
         if len(positions) >= self.settings.live_max_open_positions:

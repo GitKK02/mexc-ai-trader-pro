@@ -8,6 +8,7 @@ from app.config import Settings
 from app.exchange import MexcPublicClient
 from app.models import Signal
 from app.volatility_guard import VolatilityLiquidityGuard
+from app.market_regime import MarketRegimeEngine
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +23,7 @@ class Scanner:
             settings.ai_enabled,
         )
         self.volatility_guard = VolatilityLiquidityGuard(settings)
+        self.market_regime_engine = MarketRegimeEngine(settings)
         self._semaphore = asyncio.Semaphore(
             settings.scanner_max_parallel_requests
         )
@@ -135,6 +137,8 @@ class Scanner:
                         str(ticker.spread_percent)
                     ),
                 )
+            if self.settings.market_regime_engine_enabled:
+                signal = self.market_regime_engine.attach(signal)
             signals.append(signal)
         signals.sort(key=lambda signal: signal.score, reverse=True)
 

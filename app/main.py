@@ -78,6 +78,8 @@ def signal_text(signal: Signal) -> str:
         f"Решение: {signal.decision_action} ({signal.decision_confidence})\n"
         f"Волатильность: {signal.volatility_state}\n"
         f"Ликвидность: {signal.liquidity_state}\n"
+        f"Режим 2.0: {signal.detailed_regime}\n"
+        f"Regime adjustment: {signal.regime_score_adjustment:+d}\n"
         f"Risk multiplier: {signal.volatility_guard_multiplier:.2f}x\n"
         f"Компоненты: {signal.component_scores or {}}\n"
         f"Группа: {signal.portfolio_group or '—'}\n"
@@ -164,7 +166,7 @@ async def send_scan(bot: Bot, chat_id: int, force: bool) -> None:
 async def menu(message: Message):
     if not allowed(message.from_user): return
     await message.answer(
-        f"MEXC AI Trader Pro v1.1.0\n"
+        f"MEXC AI Trader Pro v1.2.0\n"
         f"Режим: {settings.trading_mode}\n"
         f"CONFIRM: {'РАЗБЛОКИРОВАН' if settings.confirm_unlocked else 'заблокирован'}",
         reply_markup=main_menu(scan_running, settings.confirm_unlocked),
@@ -717,6 +719,19 @@ async def position_actions_log(message: Message):
     )
 
 
+@dispatcher.message(Command("regimes"))
+async def regimes_status(message: Message):
+    if not allowed(message.from_user): return
+    if not last_signals:
+        await message.answer("Режимы пока не рассчитаны. Сначала запусти сканирование.")
+        return
+    blocks=[]
+    for signal in last_signals[: settings.portfolio_top_limit]:
+        reasons="\n".join(f"• {r}" for r in (signal.regime_reasons or [])[:4])
+        blocks.append(f"{signal.symbol} {signal.side}\n{signal.detailed_regime}\nAdjustment: {signal.regime_score_adjustment:+d}\nAllowed: {'YES' if signal.regime_allowed is not False else 'NO'}\n{reasons}")
+    await message.answer("\n\n".join(blocks))
+
+
 @dispatcher.message(Command("status"))
 @dispatcher.message(F.text == "📊 Статус")
 async def status(message: Message):
@@ -876,6 +891,7 @@ async def main():
         BotCommand(command="position_advice", description="Совет по позициям"),
         BotCommand(command="confirm_position", description="Подтвердить действие"),
         BotCommand(command="position_actions_log", description="Журнал действий"),
+        BotCommand(command="regimes", description="Режимы рынка"),
         BotCommand(command="confirm_trade", description="Подтвердить LIVE-сделку"),
     ])
     asyncio.create_task(auto_scan_loop(bot))

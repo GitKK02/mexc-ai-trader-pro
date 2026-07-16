@@ -48,6 +48,10 @@ class Signal:
     volatility_guard_allowed: bool | None = None
     volatility_guard_multiplier: float = 1.0
     volatility_guard_reasons: list[str] | None = None
+    detailed_regime: str = "UNKNOWN"
+    regime_score_adjustment: int = 0
+    regime_allowed: bool | None = None
+    regime_reasons: list[str] | None = None
 
 
 @dataclass(slots=True)

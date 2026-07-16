@@ -148,6 +148,18 @@ class Settings(BaseSettings):
     volatility_guard_reduce_risk_wide_spread_multiplier: float = 0.60
     volatility_guard_reduce_risk_low_volume_multiplier: float = 0.70
     volatility_guard_cooldown_minutes_after_panic: int = 30
+    market_regime_engine_enabled: bool = True
+    market_regime_strong_trend_adx: float = 28.0
+    market_regime_weak_trend_adx: float = 18.0
+    market_regime_breakout_volume_ratio: float = 1.25
+    market_regime_panic_atr_percent: float = 5.0
+    market_regime_panic_momentum_percent: float = 3.0
+    market_regime_countertrend_penalty: int = 18
+    market_regime_aligned_bonus: int = 8
+    market_regime_range_penalty: int = 10
+    market_regime_compression_penalty: int = 6
+    market_regime_breakout_bonus: int = 10
+    market_regime_block_new_entries_in_panic: bool = True
     portfolio_correlation_groups: str = (
         "BTC:BTC_USDT;"
         "LARGE_CAP:ETH_USDT,BNB_USDT;"
