@@ -92,7 +92,7 @@ async def send_scan(bot: Bot, chat_id: int, force: bool) -> None:
 async def menu(message: Message):
     if not allowed(message.from_user): return
     await message.answer(
-        f"MEXC AI Trader Pro v0.4.0\n"
+        f"MEXC AI Trader Pro v0.4.1\n"
         f"Режим: {settings.trading_mode}\n"
         f"CONFIRM: {'РАЗБЛОКИРОВАН' if settings.confirm_unlocked else 'заблокирован'}",
         reply_markup=main_menu(scan_running, settings.confirm_unlocked),
@@ -197,12 +197,19 @@ async def confirm_trade(message: Message):
             f"Position ID: {pos.get('positionId')}\n"
             f"Цена: {pos.get('holdAvgPrice')}\n"
             f"Объём: {pos.get('holdVol')}\n"
+            f"SL: {result['actual_stop_loss']}\n"
+            f"TP: {result['actual_take_profit']}\n"
             f"TP/SL записей: {len(result['protection'])}",
             reply_markup=live_position_actions(int(pos.get("positionId"))),
         )
     except Exception as exc:
         logger.exception("confirm execution failed")
-        await message.answer(f"🚨 Ошибка LIVE: {type(exc).__name__}: {exc}\nПроверь MEXC вручную.")
+        await message.answer(
+            "🚨 LIVE-операция не завершена. "
+            "Проверь вкладки «Позиции» и TP/SL на MEXC, "
+            "затем нажми «LIVE-сверка». "
+            "Техническая причина записана в локальный LIVE-журнал."
+        )
 
 
 @dispatcher.message(Command("reconcile"))
