@@ -6,6 +6,7 @@ import aiohttp
 
 from app.live_exchange import MexcPrivateClient
 from app.risk_manager import ContractSpec, TradePlan, build_trade_plan
+from app.portfolio_manager import PortfolioRiskManager
 
 
 def floor_step(value: Decimal, step: Decimal) -> Decimal:
@@ -16,6 +17,7 @@ class MultiAssetConfirmService:
     def __init__(self, settings, live_db) -> None:
         self.settings = settings
         self.db = live_db
+        self.portfolio = PortfolioRiskManager(settings)
         self.private = MexcPrivateClient(
             settings.mexc_base_url,
             settings.mexc_api_key,
@@ -110,8 +112,28 @@ class MultiAssetConfirmService:
         positions = await self.private.open_positions()
         if len(positions) >= self.settings.live_max_open_positions:
             raise ValueError("Достигнут лимит открытых позиций")
-        if any(str(position.get("symbol")) == symbol for position in positions):
-            raise ValueError("По этой паре уже есть открытая позиция")
+
+        equity = await self.account_equity()
+        requested = min(
+            Decimal(str(self.settings.live_risk_per_trade_percent)),
+            Decimal(str(self.settings.live_max_risk_per_trade_percent)),
+        )
+        portfolio_positions = self.portfolio.positions_from_mexc(
+            positions,
+            equity,
+        )
+        assessment = self.portfolio.assess(
+            signal,
+            portfolio_positions,
+            requested,
+        )
+        signal.portfolio_score = assessment.adjusted_score
+        signal.portfolio_allowed = assessment.allowed
+        signal.portfolio_group = assessment.correlation_group
+        signal.portfolio_reasons = assessment.reasons
+        if self.settings.portfolio_manager_enabled and not assessment.allowed:
+            details = "; ".join(assessment.reasons) or "Portfolio Manager отклонил сделку"
+            raise ValueError(details)
 
         trades_count, daily_pnl = self.db.today()
         if trades_count >= self.settings.live_max_trades_per_day:
@@ -133,11 +155,6 @@ class MultiAssetConfirmService:
                 f"Цена ушла от сигнала на {deviation:.3f}%"
             )
 
-        equity = await self.account_equity()
-        requested = min(
-            Decimal(str(self.settings.live_risk_per_trade_percent)),
-            Decimal(str(self.settings.live_max_risk_per_trade_percent)),
-        )
         return build_trade_plan(
             symbol=symbol,
             side=signal.side,

@@ -78,6 +78,28 @@ class Settings(BaseSettings):
     scanner_ai_only_top_n: int = 3
     scanner_signal_expiration_seconds: int = 180
 
+    portfolio_manager_enabled: bool = True
+    portfolio_max_total_risk_percent: float = 0.50
+    portfolio_max_same_direction_risk_percent: float = 0.35
+    portfolio_max_group_risk_percent: float = 0.25
+    portfolio_max_positions_per_group: int = 1
+    portfolio_min_adjusted_score_confirm: int = 80
+    portfolio_reduce_score_same_direction: int = 8
+    portfolio_reduce_score_same_group: int = 15
+    portfolio_block_same_symbol: bool = True
+    portfolio_top_limit: int = 10
+    portfolio_correlation_groups: str = (
+        "BTC:BTC_USDT;"
+        "LARGE_CAP:ETH_USDT,BNB_USDT;"
+        "L1_BETA:SOL_USDT,AVAX_USDT,SUI_USDT,APT_USDT,NEAR_USDT,SEI_USDT;"
+        "PAYMENTS:XRP_USDT,ADA_USDT,TRX_USDT;"
+        "L2:ARB_USDT,OP_USDT;"
+        "MEME:DOGE_USDT;"
+        "ORACLE:LINK_USDT;"
+        "TON:TON_USDT;"
+        "DEFI:INJ_USDT"
+    )
+
     database_path: str = "./data/trader.db"
     live_database_path: str = "./data/live_trader.db"
     log_level: str = "INFO"
@@ -100,6 +122,21 @@ class Settings(BaseSettings):
             for value in self.scanner_timeframes.split(",")
             if value.strip()
         ]
+
+    @property
+    def correlation_groups(self) -> dict[str, set[str]]:
+        groups: dict[str, set[str]] = {}
+        for raw_group in self.portfolio_correlation_groups.split(";"):
+            raw_group = raw_group.strip()
+            if not raw_group or ":" not in raw_group:
+                continue
+            name, raw_symbols = raw_group.split(":", 1)
+            groups[name.strip().upper()] = {
+                symbol.strip().upper()
+                for symbol in raw_symbols.split(",")
+                if symbol.strip()
+            }
+        return groups
 
     @property
     def live_whitelist(self) -> set[str]:

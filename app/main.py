@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import secrets
+from decimal import Decimal
 from datetime import datetime, timedelta, timezone
 
 from aiogram import Bot, Dispatcher, F
@@ -13,6 +14,7 @@ from app.live_database import LiveDatabase
 from app.models import Signal
 from app.multi_asset_confirm import MultiAssetConfirmService
 from app.paper_engine import PaperEngine
+from app.portfolio_manager import PortfolioRiskManager
 from app.scanner import Scanner
 from app.telegram_ui import (
     confirm_plan_actions,
@@ -34,6 +36,7 @@ paper_db = Database(settings.database_path)
 paper = PaperEngine(settings, paper_db)
 live_db = LiveDatabase(settings.live_database_path)
 confirm_service = MultiAssetConfirmService(settings, live_db)
+portfolio_manager = PortfolioRiskManager(settings)
 
 scan_running = settings.auto_scan_on_start
 last_signals: list[Signal] = []
@@ -56,6 +59,8 @@ def signal_text(signal: Signal) -> str:
         f"BTC-контекст: {signal.btc_context}\n"
         f"Оценка: {signal.score}/100\n"
         f"Таймфреймы: {signal.timeframe_scores or {}}\n"
+        f"Portfolio score: {signal.portfolio_score if signal.portfolio_score is not None else '—'}\n"
+        f"Группа: {signal.portfolio_group or '—'}\n"
         f"ИИ: {signal.ai_decision}"
         f"{' — ' + signal.ai_summary if signal.ai_summary else ''}\n\n"
         f"Вход: {signal.entry:.8g}\nSL: {signal.stop_loss:.8g}\n"
@@ -64,9 +69,50 @@ def signal_text(signal: Signal) -> str:
     )
 
 
+async def live_portfolio_snapshot():
+    if not settings.confirm_unlocked:
+        return [], 0.0
+    positions = await confirm_service.private.open_positions()
+    equity = await confirm_service.account_equity()
+    normalized = portfolio_manager.positions_from_mexc(
+        positions,
+        equity,
+    )
+    return normalized, float(equity)
+
+
+def attach_portfolio_scores(
+    signals: list[Signal],
+    positions,
+) -> list[Signal]:
+    requested = min(
+        Decimal(str(settings.live_risk_per_trade_percent)),
+        Decimal(str(settings.live_max_risk_per_trade_percent)),
+    )
+    ranked = portfolio_manager.rank(
+        signals,
+        positions,
+        requested,
+    )
+    ordered: list[Signal] = []
+    for signal, assessment in ranked:
+        signal.portfolio_score = assessment.adjusted_score
+        signal.portfolio_allowed = assessment.allowed
+        signal.portfolio_group = assessment.correlation_group
+        signal.portfolio_reasons = assessment.reasons
+        ordered.append(signal)
+    return ordered
+
+
 async def send_scan(bot: Bot, chat_id: int, force: bool) -> None:
     global last_signals
     signals = await scanner.run_once()
+    try:
+        positions, _equity = await live_portfolio_snapshot()
+    except Exception:
+        logger.exception("portfolio snapshot failed")
+        positions = []
+    signals = attach_portfolio_scores(signals, positions)
     last_signals = signals
     if not signals:
         await bot.send_message(chat_id, "Подходящих сигналов нет.")
@@ -96,7 +142,7 @@ async def send_scan(bot: Bot, chat_id: int, force: bool) -> None:
 async def menu(message: Message):
     if not allowed(message.from_user): return
     await message.answer(
-        f"MEXC AI Trader Pro v0.5.0\n"
+        f"MEXC AI Trader Pro v0.6.0\n"
         f"Режим: {settings.trading_mode}\n"
         f"CONFIRM: {'РАЗБЛОКИРОВАН' if settings.confirm_unlocked else 'заблокирован'}",
         reply_markup=main_menu(scan_running, settings.confirm_unlocked),
@@ -285,6 +331,94 @@ async def paper_skip(callback: CallbackQuery):
     await callback.answer("Пропущено")
 
 
+@dispatcher.message(Command("top"))
+@dispatcher.message(F.text == "🏆 Топ сигналов")
+async def top_signals(message: Message):
+    if not allowed(message.from_user):
+        return
+    if not last_signals:
+        await message.answer("Рейтинг сигналов пока пуст. Запусти сканирование.")
+        return
+    rows = []
+    for index, signal in enumerate(
+        last_signals[: settings.portfolio_top_limit],
+        start=1,
+    ):
+        verdict = "✅" if signal.portfolio_allowed is not False else "⛔"
+        rows.append(
+            f"{index}. {verdict} {signal.symbol} {signal.side}\n"
+            f"Scanner: {signal.score}/100 | "
+            f"Portfolio: {signal.portfolio_score if signal.portfolio_score is not None else '—'}/100\n"
+            f"Группа: {signal.portfolio_group or 'OTHER'}"
+        )
+    await message.answer("\n\n".join(rows))
+
+
+@dispatcher.message(Command("portfolio"))
+async def portfolio_status(message: Message):
+    if not allowed(message.from_user):
+        return
+    if not settings.confirm_unlocked:
+        await message.answer("LIVE Portfolio доступен только в разблокированном CONFIRM.")
+        return
+    try:
+        positions, equity = await live_portfolio_snapshot()
+    except Exception as exc:
+        logger.exception("portfolio status failed")
+        await message.answer(
+            "Не удалось получить портфель MEXC. Проверь LIVE-сверку и журнал Docker."
+        )
+        return
+
+    total_risk = sum(
+        (position.risk_percent for position in positions),
+        Decimal("0"),
+    )
+    if not positions:
+        await message.answer(
+            f"💼 LIVE Portfolio\n"
+            f"Equity: {equity:.2f} USDT\n"
+            f"Открытых позиций: 0\n"
+            f"Зарезервированный риск: 0.00% / "
+            f"{settings.portfolio_max_total_risk_percent:.2f}%"
+        )
+        return
+
+    lines = [
+        f"💼 LIVE Portfolio",
+        f"Equity: {equity:.2f} USDT",
+        f"Открытых позиций: {len(positions)}",
+        f"Зарезервированный риск: {total_risk:.3f}% / "
+        f"{settings.portfolio_max_total_risk_percent:.3f}%",
+        "",
+    ]
+    for position in positions:
+        lines.append(
+            f"{position.symbol} {position.side} — "
+            f"риск {position.risk_percent:.3f}% — "
+            f"группа {portfolio_manager.group_for(position.symbol)}"
+        )
+    await message.answer("\n".join(lines))
+
+
+@dispatcher.message(Command("risk"))
+@dispatcher.message(F.text == "🛡 Риск")
+async def risk_status(message: Message):
+    if not allowed(message.from_user):
+        return
+    await message.answer(
+        "🛡 Portfolio Risk Limits\n"
+        f"Риск сделки: {settings.live_risk_per_trade_percent:.3f}%\n"
+        f"Общий риск: {settings.portfolio_max_total_risk_percent:.3f}%\n"
+        f"Одно направление: "
+        f"{settings.portfolio_max_same_direction_risk_percent:.3f}%\n"
+        f"Одна группа: {settings.portfolio_max_group_risk_percent:.3f}%\n"
+        f"Позиций в группе: {settings.portfolio_max_positions_per_group}\n"
+        f"Минимальный Portfolio score: "
+        f"{settings.portfolio_min_adjusted_score_confirm}"
+    )
+
+
 @dispatcher.message(Command("status"))
 @dispatcher.message(F.text == "📊 Статус")
 async def status(message: Message):
@@ -355,6 +489,9 @@ async def main():
         BotCommand(command="scan", description="Сканировать"),
         BotCommand(command="status", description="Статус"),
         BotCommand(command="reconcile", description="LIVE-сверка"),
+        BotCommand(command="portfolio", description="LIVE-портфель"),
+        BotCommand(command="top", description="Рейтинг сигналов"),
+        BotCommand(command="risk", description="Лимиты риска"),
         BotCommand(command="confirm_trade", description="Подтвердить LIVE-сделку"),
     ])
     asyncio.create_task(auto_scan_loop(bot))

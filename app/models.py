@@ -34,6 +34,10 @@ class Signal:
     btc_context: str = "NEUTRAL"
     timeframe_scores: dict[str, int] | None = None
     diagnostics: dict[str, float | str] | None = None
+    portfolio_score: int | None = None
+    portfolio_allowed: bool | None = None
+    portfolio_group: str = ""
+    portfolio_reasons: list[str] | None = None
 
 
 @dataclass(slots=True)
