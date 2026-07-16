@@ -31,6 +31,16 @@ class LiveDatabase:
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS position_action_events(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                position_id TEXT NOT NULL,
+                symbol TEXT NOT NULL,
+                action TEXT NOT NULL,
+                state TEXT NOT NULL,
+                details TEXT,
+                created_at TEXT NOT NULL
+            );
+
             CREATE TABLE IF NOT EXISTS position_intelligence_state(
                 position_id TEXT PRIMARY KEY,
                 last_action TEXT NOT NULL,
@@ -78,6 +88,46 @@ class LiveDatabase:
         with self.lock, self.connect() as conn:
             conn.execute("INSERT OR IGNORE INTO daily_state(day) VALUES(?)", (day,))
             conn.execute("UPDATE daily_state SET trades_count=trades_count+1 WHERE day=?", (day,))
+
+    def add_position_action_event(
+        self,
+        *,
+        position_id: str,
+        symbol: str,
+        action: str,
+        state: str,
+        details: str = "",
+    ) -> None:
+        from datetime import datetime, timezone
+
+        with self.lock, self.connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO position_action_events(
+                    position_id, symbol, action, state, details, created_at
+                ) VALUES(?,?,?,?,?,?)
+                """,
+                (
+                    position_id,
+                    symbol,
+                    action,
+                    state,
+                    details,
+                    datetime.now(timezone.utc).isoformat(),
+                ),
+            )
+
+    def recent_position_action_events(self, limit: int = 20):
+        with self.connect() as conn:
+            return conn.execute(
+                """
+                SELECT * FROM position_action_events
+                ORDER BY id DESC
+                LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+
 
     def position_intelligence_state(self, position_id: str):
         with self.connect() as conn:

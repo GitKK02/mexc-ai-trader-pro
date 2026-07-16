@@ -179,6 +179,40 @@ class MexcPrivateClient:
             params,
         )
 
+
+    async def modify_tpsl_plan(
+        self,
+        *,
+        stop_plan_order_id: int,
+        stop_loss_price: Decimal | None = None,
+        take_profit_price: Decimal | None = None,
+        loss_trend: int = 1,
+        profit_trend: int = 1,
+    ):
+        params = {
+            "stopPlanOrderId": stop_plan_order_id,
+            "lossTrend": loss_trend,
+            "profitTrend": profit_trend,
+            "stopLossPrice": (
+                str(stop_loss_price)
+                if stop_loss_price is not None
+                else None
+            ),
+            "takeProfitPrice": (
+                str(take_profit_price)
+                if take_profit_price is not None
+                else None
+            ),
+            "takeProfitReverse": 2,
+            "stopLossReverse": 2,
+        }
+        return await self._request(
+            "POST",
+            "/api/v1/private/stoporder/change_plan_price",
+            params,
+        )
+
+
     async def emergency_close(
         self,
         position: dict,

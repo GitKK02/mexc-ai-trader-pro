@@ -113,6 +113,13 @@ class Settings(BaseSettings):
     position_intelligence_notify_on_change_only: bool = True
     position_intelligence_min_notify_seconds: int = 120
     position_intelligence_max_positions: int = 10
+
+    position_actions_enabled: bool = True
+    position_actions_mode: str = "CONFIRM"
+    position_actions_confirmation_ttl_seconds: int = 60
+    position_actions_breakeven_buffer_percent: float = 0.03
+    position_actions_min_r_for_breakeven: float = 1.0
+    position_actions_require_existing_stop: bool = True
     portfolio_correlation_groups: str = (
         "BTC:BTC_USDT;"
         "LARGE_CAP:ETH_USDT,BNB_USDT;"

@@ -43,3 +43,26 @@ def live_position_actions(position_id: int) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[[
         InlineKeyboardButton(text="🚨 Закрыть LIVE", callback_data=f"live_close_position:{position_id}")
     ]])
+
+
+
+def position_management_actions(position_id: int) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(
+            text="🟦 Подготовить безубыток",
+            callback_data=f"position_be_prepare:{position_id}",
+        )
+    ]])
+
+
+def position_be_confirm_actions(token: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(
+            text="⚠️ Первое подтверждение BE",
+            callback_data=f"position_be_first:{token}",
+        ),
+        InlineKeyboardButton(
+            text="Отмена",
+            callback_data=f"position_be_cancel:{token}",
+        ),
+    ]])

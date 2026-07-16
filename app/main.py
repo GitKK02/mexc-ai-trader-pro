@@ -17,13 +17,18 @@ from app.multi_asset_confirm import MultiAssetConfirmService
 from app.paper_engine import PaperEngine
 from app.portfolio_manager import PortfolioRiskManager
 from app.position_intelligence import DynamicPositionManager
+from app.position_actions import ConfirmedPositionActions
 from app.scanner import Scanner
 from app.telegram_ui import (
     confirm_plan_actions,
     live_position_actions,
     main_menu,
     position_actions,
+    position_management_actions,
+    position_be_confirm_actions,
     signal_actions,
+    position_management_actions,
+    position_be_confirm_actions,
 )
 
 logging.basicConfig(
@@ -41,6 +46,11 @@ confirm_service = MultiAssetConfirmService(settings, live_db)
 portfolio_manager = PortfolioRiskManager(settings)
 decision_engine = AIDecisionEngine(settings)
 dynamic_position_manager = DynamicPositionManager(settings)
+confirmed_position_actions = ConfirmedPositionActions(
+    settings,
+    confirm_service,
+)
+position_action_pending: dict[str, tuple[object, datetime, bool]] = {}
 
 scan_running = settings.auto_scan_on_start
 last_signals: list[Signal] = []
@@ -151,7 +161,7 @@ async def send_scan(bot: Bot, chat_id: int, force: bool) -> None:
 async def menu(message: Message):
     if not allowed(message.from_user): return
     await message.answer(
-        f"MEXC AI Trader Pro v0.8.0\n"
+        f"MEXC AI Trader Pro v0.9.0\n"
         f"Режим: {settings.trading_mode}\n"
         f"CONFIRM: {'РАЗБЛОКИРОВАН' if settings.confirm_unlocked else 'заблокирован'}",
         reply_markup=main_menu(scan_running, settings.confirm_unlocked),
@@ -506,11 +516,195 @@ async def position_advice(message: Message):
                 + "\n".join(f"• {reason}" for reason in plan.reasons)
             )
         await message.answer("\n\n".join(blocks))
+        if settings.position_actions_enabled:
+            for position in positions:
+                await message.answer(
+                    f"Управление {position.get('symbol')} "
+                    f"positionId={position.get('positionId')}",
+                    reply_markup=position_management_actions(
+                        int(position.get("positionId"))
+                    ),
+                )
     except Exception:
         logger.exception("position advice failed")
         await message.answer(
             "Не удалось получить рекомендации. Проверь LIVE-сверку и Docker-лог."
         )
+
+
+@dispatcher.callback_query(F.data.startswith("position_be_prepare:"))
+async def position_be_prepare(callback: CallbackQuery):
+    if not allowed(callback.from_user):
+        return
+    if (
+        not settings.position_actions_enabled
+        or settings.position_actions_mode.upper() != "CONFIRM"
+    ):
+        await callback.answer(
+            "Исполнение действий отключено",
+            show_alert=True,
+        )
+        return
+
+    position_id = int(callback.data.split(":", 1)[1])
+    try:
+        plan = await confirmed_position_actions.prepare_breakeven(
+            position_id
+        )
+    except Exception as exc:
+        await callback.answer(str(exc), show_alert=True)
+        return
+
+    token = secrets.token_urlsafe(8)
+    position_action_pending[token] = (
+        plan,
+        datetime.now(timezone.utc),
+        False,
+    )
+    await callback.message.answer(
+        f"⚠️ ПЕРЕНОС STOP LOSS В БЕЗУБЫТОК\n\n"
+        f"{plan.symbol} {plan.side}\n"
+        f"Текущий R: {plan.current_r:.2f}R\n"
+        f"Вход: {plan.entry_price}\n"
+        f"Текущая цена: {plan.current_price}\n"
+        f"Старый SL: {plan.current_stop_loss}\n"
+        f"Новый SL: {plan.proposed_stop_loss}\n"
+        f"TP сохранится: {plan.take_profit or 'нет'}\n\n"
+        f"После первой кнопки потребуется:\n"
+        f"/confirm_position {settings.live_confirm_code}",
+        reply_markup=position_be_confirm_actions(token),
+    )
+    await callback.answer()
+
+
+@dispatcher.callback_query(F.data.startswith("position_be_first:"))
+async def position_be_first(callback: CallbackQuery):
+    if not allowed(callback.from_user):
+        return
+    token = callback.data.split(":", 1)[1]
+    item = position_action_pending.get(token)
+    if not item:
+        await callback.answer("План устарел", show_alert=True)
+        return
+    plan, created, _ = item
+    if (
+        datetime.now(timezone.utc) - created
+    ).total_seconds() > settings.position_actions_confirmation_ttl_seconds:
+        position_action_pending.pop(token, None)
+        await callback.answer("Время истекло", show_alert=True)
+        return
+    position_action_pending[token] = (plan, created, True)
+    await callback.message.answer(
+        f"Первое подтверждение принято. В течение "
+        f"{settings.position_actions_confirmation_ttl_seconds} сек. отправь:\n"
+        f"/confirm_position {settings.live_confirm_code}"
+    )
+    await callback.answer()
+
+
+@dispatcher.callback_query(F.data.startswith("position_be_cancel:"))
+async def position_be_cancel(callback: CallbackQuery):
+    if not allowed(callback.from_user):
+        return
+    position_action_pending.pop(
+        callback.data.split(":", 1)[1],
+        None,
+    )
+    await callback.answer("Отменено")
+    await callback.message.edit_reply_markup(reply_markup=None)
+
+
+@dispatcher.message(Command("confirm_position"))
+async def confirm_position_action(message: Message):
+    if not allowed(message.from_user):
+        return
+
+    parts = (message.text or "").split(maxsplit=1)
+    if (
+        len(parts) != 2
+        or parts[1].strip() != settings.live_confirm_code
+    ):
+        await message.answer("Неверный код.")
+        return
+
+    now = datetime.now(timezone.utc)
+    valid = []
+    for token, (plan, created, first) in list(
+        position_action_pending.items()
+    ):
+        if (
+            first
+            and (now - created).total_seconds()
+            <= settings.position_actions_confirmation_ttl_seconds
+        ):
+            valid.append((token, plan))
+
+    if len(valid) != 1:
+        await message.answer(
+            "Нет одной действующей подтверждённой операции."
+        )
+        return
+
+    token, plan = valid[0]
+    position_action_pending.pop(token, None)
+    live_db.add_position_action_event(
+        position_id=str(plan.position_id),
+        symbol=plan.symbol,
+        action="BREAKEVEN",
+        state="SUBMITTING",
+        details=(
+            f"old={plan.current_stop_loss}; "
+            f"new={plan.proposed_stop_loss}"
+        ),
+    )
+
+    try:
+        await confirmed_position_actions.execute_breakeven(plan)
+        live_db.add_position_action_event(
+            position_id=str(plan.position_id),
+            symbol=plan.symbol,
+            action="BREAKEVEN",
+            state="VERIFIED",
+            details=f"new_stop={plan.proposed_stop_loss}",
+        )
+        await message.answer(
+            f"✅ Stop Loss перенесён и подтверждён MEXC\n"
+            f"{plan.symbol} {plan.side}\n"
+            f"Новый SL: {plan.proposed_stop_loss}\n"
+            f"TP: {plan.take_profit or 'нет'}"
+        )
+    except Exception as exc:
+        logger.exception("breakeven action failed")
+        live_db.add_position_action_event(
+            position_id=str(plan.position_id),
+            symbol=plan.symbol,
+            action="BREAKEVEN",
+            state="ERROR",
+            details=f"{type(exc).__name__}: {exc}"[:500],
+        )
+        await message.answer(
+            "🚨 Не удалось подтвердить перенос Stop Loss. "
+            "Немедленно проверь TP/SL на MEXC вручную."
+        )
+
+
+@dispatcher.message(Command("position_actions_log"))
+async def position_actions_log(message: Message):
+    if not allowed(message.from_user):
+        return
+    rows = live_db.recent_position_action_events(20)
+    if not rows:
+        await message.answer("Журнал действий по позициям пуст.")
+        return
+    await message.answer(
+        "\n\n".join(
+            f"{row['action']} — {row['state']}\n"
+            f"{row['symbol']} positionId={row['position_id']}\n"
+            f"{row['details'] or ''}\n"
+            f"{row['created_at']}"
+            for row in rows
+        )
+    )
 
 
 @dispatcher.message(Command("status"))
@@ -670,6 +864,8 @@ async def main():
         BotCommand(command="risk", description="Лимиты риска"),
         BotCommand(command="decisions", description="Решения AI Engine"),
         BotCommand(command="position_advice", description="Совет по позициям"),
+        BotCommand(command="confirm_position", description="Подтвердить действие"),
+        BotCommand(command="position_actions_log", description="Журнал действий"),
         BotCommand(command="confirm_trade", description="Подтвердить LIVE-сделку"),
     ])
     asyncio.create_task(auto_scan_loop(bot))
