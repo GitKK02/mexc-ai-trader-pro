@@ -31,6 +31,12 @@ class LiveDatabase:
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS position_intelligence_state(
+                position_id TEXT PRIMARY KEY,
+                last_action TEXT NOT NULL,
+                last_notified_at TEXT NOT NULL
+            );
+
             CREATE TABLE IF NOT EXISTS daily_state(
                 day TEXT PRIMARY KEY,
                 trades_count INTEGER NOT NULL DEFAULT 0,
@@ -72,6 +78,33 @@ class LiveDatabase:
         with self.lock, self.connect() as conn:
             conn.execute("INSERT OR IGNORE INTO daily_state(day) VALUES(?)", (day,))
             conn.execute("UPDATE daily_state SET trades_count=trades_count+1 WHERE day=?", (day,))
+
+    def position_intelligence_state(self, position_id: str):
+        with self.connect() as conn:
+            return conn.execute(
+                "SELECT * FROM position_intelligence_state WHERE position_id=?",
+                (position_id,),
+            ).fetchone()
+
+    def upsert_position_intelligence_state(
+        self,
+        position_id: str,
+        last_action: str,
+        last_notified_at: str,
+    ) -> None:
+        with self.lock, self.connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO position_intelligence_state(
+                    position_id, last_action, last_notified_at
+                ) VALUES(?,?,?)
+                ON CONFLICT(position_id) DO UPDATE SET
+                    last_action=excluded.last_action,
+                    last_notified_at=excluded.last_notified_at
+                """,
+                (position_id, last_action, last_notified_at),
+            )
+
 
     def recent(self, limit: int = 10):
         with self.connect() as conn:

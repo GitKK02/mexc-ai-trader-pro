@@ -102,6 +102,17 @@ class Settings(BaseSettings):
     decision_range_regime_penalty: int = 8
     decision_unstable_btc_penalty: int = 12
     decision_min_timeframe_agreement: int = 3
+
+    position_intelligence_enabled: bool = True
+    position_intelligence_poll_seconds: int = 20
+    position_intelligence_mode: str = "SHADOW"
+    position_intelligence_tp1_r: float = 1.0
+    position_intelligence_breakeven_r: float = 1.0
+    position_intelligence_trail_start_r: float = 1.5
+    position_intelligence_exit_r: float = -1.0
+    position_intelligence_notify_on_change_only: bool = True
+    position_intelligence_min_notify_seconds: int = 120
+    position_intelligence_max_positions: int = 10
     portfolio_correlation_groups: str = (
         "BTC:BTC_USDT;"
         "LARGE_CAP:ETH_USDT,BNB_USDT;"

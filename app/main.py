@@ -16,6 +16,7 @@ from app.models import Signal
 from app.multi_asset_confirm import MultiAssetConfirmService
 from app.paper_engine import PaperEngine
 from app.portfolio_manager import PortfolioRiskManager
+from app.position_intelligence import DynamicPositionManager
 from app.scanner import Scanner
 from app.telegram_ui import (
     confirm_plan_actions,
@@ -39,6 +40,7 @@ live_db = LiveDatabase(settings.live_database_path)
 confirm_service = MultiAssetConfirmService(settings, live_db)
 portfolio_manager = PortfolioRiskManager(settings)
 decision_engine = AIDecisionEngine(settings)
+dynamic_position_manager = DynamicPositionManager(settings)
 
 scan_running = settings.auto_scan_on_start
 last_signals: list[Signal] = []
@@ -149,7 +151,7 @@ async def send_scan(bot: Bot, chat_id: int, force: bool) -> None:
 async def menu(message: Message):
     if not allowed(message.from_user): return
     await message.answer(
-        f"MEXC AI Trader Pro v0.7.0\n"
+        f"MEXC AI Trader Pro v0.8.0\n"
         f"Режим: {settings.trading_mode}\n"
         f"CONFIRM: {'РАЗБЛОКИРОВАН' if settings.confirm_unlocked else 'заблокирован'}",
         reply_markup=main_menu(scan_running, settings.confirm_unlocked),
@@ -464,6 +466,53 @@ async def decisions_status(message: Message):
     await message.answer("\n\n".join(blocks))
 
 
+@dispatcher.message(Command("position_advice"))
+@dispatcher.message(F.text == "🧭 Совет по позициям")
+async def position_advice(message: Message):
+    if not allowed(message.from_user):
+        return
+    if not settings.confirm_unlocked:
+        await message.answer("Position Manager доступен только в CONFIRM.")
+        return
+
+    try:
+        positions = await confirm_service.private.open_positions()
+        protection = await confirm_service.private.current_tpsl()
+        if not positions:
+            await message.answer("Открытых LIVE-позиций нет.")
+            return
+
+        blocks = []
+        for position in positions[: settings.position_intelligence_max_positions]:
+            symbol = str(position.get("symbol") or "")
+            ticker = await confirm_service.public_get(
+                "/api/v1/contract/ticker",
+                {"symbol": symbol},
+            )
+            plan = dynamic_position_manager.evaluate(
+                position,
+                Decimal(str(ticker["lastPrice"])),
+                protection,
+            )
+            r_text = (
+                f"{plan.current_r:.2f}R"
+                if plan.current_r is not None
+                else "не рассчитан"
+            )
+            blocks.append(
+                f"{plan.symbol} {plan.side}\n"
+                f"{plan.action} — {plan.confidence}\n"
+                f"Результат: {r_text}\n"
+                + "\n".join(f"• {reason}" for reason in plan.reasons)
+            )
+        await message.answer("\n\n".join(blocks))
+    except Exception:
+        logger.exception("position advice failed")
+        await message.answer(
+            "Не удалось получить рекомендации. Проверь LIVE-сверку и Docker-лог."
+        )
+
+
 @dispatcher.message(Command("status"))
 @dispatcher.message(F.text == "📊 Статус")
 async def status(message: Message):
@@ -509,6 +558,88 @@ async def paper_info(message: Message):
     )
 
 
+async def position_intelligence_loop(bot: Bot):
+    while True:
+        await asyncio.sleep(settings.position_intelligence_poll_seconds)
+        if (
+            not settings.position_intelligence_enabled
+            or not settings.confirm_unlocked
+        ):
+            continue
+
+        try:
+            positions = await confirm_service.private.open_positions()
+            if not positions:
+                continue
+            protection = await confirm_service.private.current_tpsl()
+
+            for position in positions[: settings.position_intelligence_max_positions]:
+                symbol = str(position.get("symbol") or "")
+                ticker = await confirm_service.public_get(
+                    "/api/v1/contract/ticker",
+                    {"symbol": symbol},
+                )
+                current_price = Decimal(str(ticker["lastPrice"]))
+                plan = dynamic_position_manager.evaluate(
+                    position,
+                    current_price,
+                    protection,
+                )
+
+                state = live_db.position_intelligence_state(
+                    plan.position_id
+                )
+                now = datetime.now(timezone.utc)
+                should_notify = True
+                if state:
+                    last_action = str(state["last_action"])
+                    last_time = datetime.fromisoformat(
+                        str(state["last_notified_at"])
+                    )
+                    age = (now - last_time).total_seconds()
+                    if (
+                        settings.position_intelligence_notify_on_change_only
+                        and last_action == plan.action
+                        and age
+                        < settings.position_intelligence_min_notify_seconds
+                    ):
+                        should_notify = False
+
+                if not should_notify:
+                    continue
+
+                r_text = (
+                    f"{plan.current_r:.2f}R"
+                    if plan.current_r is not None
+                    else "не рассчитан"
+                )
+                reasons = "\n".join(
+                    f"• {reason}" for reason in plan.reasons
+                )
+                for chat_id in settings.allowed_user_ids:
+                    await bot.send_message(
+                        chat_id,
+                        f"🧭 Position Manager [{settings.position_intelligence_mode}]\n"
+                        f"{plan.symbol} {plan.side}\n"
+                        f"Действие: {plan.action} ({plan.confidence})\n"
+                        f"Текущий результат: {r_text}\n"
+                        f"Вход: {plan.entry_price}\n"
+                        f"Текущая цена: {plan.current_price}\n"
+                        f"SL: {plan.stop_loss or 'не найден'}\n"
+                        f"TP: {plan.take_profit or 'не найден'}\n\n"
+                        f"{reasons}\n\n"
+                        f"Ордеры автоматически не изменялись."
+                    )
+
+                live_db.upsert_position_intelligence_state(
+                    plan.position_id,
+                    plan.action,
+                    now.isoformat(),
+                )
+        except Exception:
+            logger.exception("position intelligence loop failed")
+
+
 async def auto_scan_loop(bot: Bot):
     while True:
         await asyncio.sleep(settings.scan_interval_seconds)
@@ -538,9 +669,11 @@ async def main():
         BotCommand(command="top", description="Рейтинг сигналов"),
         BotCommand(command="risk", description="Лимиты риска"),
         BotCommand(command="decisions", description="Решения AI Engine"),
+        BotCommand(command="position_advice", description="Совет по позициям"),
         BotCommand(command="confirm_trade", description="Подтвердить LIVE-сделку"),
     ])
     asyncio.create_task(auto_scan_loop(bot))
+    asyncio.create_task(position_intelligence_loop(bot))
     await dispatcher.start_polling(bot)
 
 
