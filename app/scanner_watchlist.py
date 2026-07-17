@@ -13,6 +13,7 @@ class WatchlistEntry:
     delta: int
     streak: int
     status: str
+    previous_status: str
     first_seen_at: datetime
     last_seen_at: datetime
     signal: Signal
@@ -87,6 +88,11 @@ class ScannerWatchlist:
                 delta=delta,
                 streak=streak,
                 status=status,
+                previous_status=(
+                    previous.status
+                    if previous is not None
+                    else "NEW"
+                ),
                 first_seen_at=(
                     previous.first_seen_at
                     if previous

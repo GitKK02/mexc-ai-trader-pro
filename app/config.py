@@ -181,6 +181,14 @@ class Settings(BaseSettings):
     scanner_watchlist_min_streak: int = 2
     scanner_near_display_limit: int = 10
     scanner_watchlist_display_limit: int = 15
+
+    adaptive_scanner_enabled: bool = True
+    adaptive_scanner_near_interval_seconds: int = 60
+    adaptive_scanner_rising_interval_seconds: int = 30
+    adaptive_scanner_min_interval_seconds: int = 20
+    adaptive_scanner_notify_promotions: bool = True
+    adaptive_scanner_promotion_cooldown_seconds: int = 300
+    runtime_trade_limits_enabled: bool = True
     portfolio_correlation_groups: str = (
         "BTC:BTC_USDT;"
         "LARGE_CAP:ETH_USDT,BNB_USDT;"

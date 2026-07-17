@@ -47,6 +47,12 @@ class LiveDatabase:
                 last_notified_at TEXT NOT NULL
             );
 
+            CREATE TABLE IF NOT EXISTS runtime_controls(
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+
             CREATE TABLE IF NOT EXISTS daily_state(
                 day TEXT PRIMARY KEY,
                 trades_count INTEGER NOT NULL DEFAULT 0,
@@ -75,6 +81,59 @@ class LiveDatabase:
         assignments = ",".join(f"{k}=?" for k in values)
         with self.lock, self.connect() as conn:
             conn.execute(f"UPDATE live_trades SET {assignments} WHERE id=?", (*values.values(), trade_id))
+
+
+    def set_control(self, key: str, value: str) -> None:
+        now = datetime.now(timezone.utc).isoformat()
+        with self.lock, self.connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO runtime_controls(key, value, updated_at)
+                VALUES(?,?,?)
+                ON CONFLICT(key) DO UPDATE SET
+                    value=excluded.value,
+                    updated_at=excluded.updated_at
+                """,
+                (key, value, now),
+            )
+
+    def get_control(
+        self,
+        key: str,
+        default: str | None = None,
+    ) -> str | None:
+        with self.connect() as conn:
+            row = conn.execute(
+                "SELECT value FROM runtime_controls WHERE key=?",
+                (key,),
+            ).fetchone()
+        return str(row["value"]) if row else default
+
+    def effective_trade_limit(self, configured: int) -> int:
+        raw = self.get_control(
+            "live_max_trades_per_day",
+            str(configured),
+        )
+        try:
+            value = int(raw)
+        except (TypeError, ValueError):
+            return configured
+        return max(0, value)
+
+    def effective_daily_loss_limit(
+        self,
+        configured: float,
+    ) -> float:
+        raw = self.get_control(
+            "live_daily_loss_limit_usdt",
+            str(configured),
+        )
+        try:
+            value = float(raw)
+        except (TypeError, ValueError):
+            return configured
+        return max(0.0, value)
+
 
     def today(self) -> tuple[int, float]:
         day = datetime.now(timezone.utc).date().isoformat()

@@ -147,9 +147,18 @@ class MultiAssetConfirmService:
             raise ValueError(details)
 
         trades_count, daily_pnl = self.db.today()
-        if trades_count >= self.settings.live_max_trades_per_day:
+        trade_limit = self.db.effective_trade_limit(
+            self.settings.live_max_trades_per_day
+        )
+        daily_loss_limit = self.db.effective_daily_loss_limit(
+            self.settings.live_daily_loss_limit_usdt
+        )
+        if trade_limit > 0 and trades_count >= trade_limit:
             raise ValueError("Достигнут дневной лимит сделок")
-        if daily_pnl <= -abs(self.settings.live_daily_loss_limit_usdt):
+        if (
+            daily_loss_limit > 0
+            and daily_pnl <= -abs(daily_loss_limit)
+        ):
             raise ValueError("Достигнут дневной лимит убытка")
 
         spec = await self.contract_spec(symbol)

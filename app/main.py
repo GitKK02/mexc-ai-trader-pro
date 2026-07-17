@@ -59,6 +59,7 @@ position_action_pending: dict[str, tuple[object, datetime, bool]] = {}
 scan_running = settings.auto_scan_on_start
 last_signals: list[Signal] = []
 last_near_signals: list[Signal] = []
+watchlist_promotion_cache: dict[str, datetime] = {}
 pending_signals: dict[str, Signal] = {}
 confirm_pending: dict[str, tuple[object, Signal, datetime, bool]] = {}
 sent_cache: dict[str, datetime] = {}
@@ -98,6 +99,40 @@ def signal_text(signal: Signal) -> str:
     )
 
 
+
+
+def effective_trade_limit() -> int:
+    return live_db.effective_trade_limit(
+        settings.live_max_trades_per_day
+    )
+
+
+def effective_daily_loss_limit() -> float:
+    return live_db.effective_daily_loss_limit(
+        settings.live_daily_loss_limit_usdt
+    )
+
+
+def adaptive_scan_interval() -> int:
+    normal = max(
+        settings.adaptive_scanner_min_interval_seconds,
+        settings.scan_interval_seconds,
+    )
+    if not settings.adaptive_scanner_enabled:
+        return normal
+
+    entries = scanner_watchlist.entries()
+    if any(entry.status == "RISING" for entry in entries):
+        return max(
+            settings.adaptive_scanner_min_interval_seconds,
+            settings.adaptive_scanner_rising_interval_seconds,
+        )
+    if last_near_signals:
+        return max(
+            settings.adaptive_scanner_min_interval_seconds,
+            settings.adaptive_scanner_near_interval_seconds,
+        )
+    return normal
 
 def near_signal_text(signal: Signal) -> str:
     reasons = "\n".join(
@@ -180,6 +215,36 @@ async def send_scan(bot: Bot, chat_id: int, force: bool) -> None:
             if entry.signal.score
             < settings.min_signal_score_paper
         ]
+
+        if settings.adaptive_scanner_notify_promotions:
+            now_promotion = datetime.now(timezone.utc)
+            for entry in entries:
+                promoted = (
+                    entry.status in {"RISING", "READY"}
+                    and entry.previous_status != entry.status
+                )
+                if not promoted:
+                    continue
+                key = f"{entry.symbol}:{entry.side}:{entry.status}"
+                previous_notice = watchlist_promotion_cache.get(key)
+                if (
+                    previous_notice
+                    and (
+                        now_promotion - previous_notice
+                    ).total_seconds()
+                    < settings.adaptive_scanner_promotion_cooldown_seconds
+                ):
+                    continue
+                watchlist_promotion_cache[key] = now_promotion
+                await bot.send_message(
+                    chat_id,
+                    f"📈 Кандидат усилился\n"
+                    f"{entry.symbol} {entry.side}\n"
+                    f"Score: {entry.score}/100 "
+                    f"(Δ {entry.delta:+d})\n"
+                    f"Streak: {entry.streak}\n"
+                    f"Статус: {entry.status}"
+                )
     else:
         last_near_signals = near
 
@@ -226,7 +291,7 @@ async def send_scan(bot: Bot, chat_id: int, force: bool) -> None:
 async def menu(message: Message):
     if not allowed(message.from_user): return
     await message.answer(
-        f"MEXC AI Trader Pro v1.3.1\n"
+        f"MEXC AI Trader Pro v1.3.2\n"
         f"Режим: {settings.trading_mode}\n"
         f"CONFIRM: {'РАЗБЛОКИРОВАН' if settings.confirm_unlocked else 'заблокирован'}",
         reply_markup=main_menu(scan_running, settings.confirm_unlocked),
@@ -889,18 +954,116 @@ async def watchlist_status(message: Message):
     await message.answer("\n\n".join(rows))
 
 
+@dispatcher.message(Command("trade_limit"))
+async def set_trade_limit(message: Message):
+    if not allowed(message.from_user):
+        return
+    if not settings.runtime_trade_limits_enabled:
+        await message.answer("Изменение лимитов отключено в .env.")
+        return
+
+    parts = (message.text or "").split(maxsplit=1)
+    if len(parts) != 2:
+        await message.answer(
+            "Использование:\n"
+            "/trade_limit 5 — максимум 5 сделок\n"
+            "/trade_limit 0 — без дневного лимита"
+        )
+        return
+    try:
+        value = int(parts[1].strip())
+    except ValueError:
+        await message.answer("Лимит должен быть целым числом.")
+        return
+    if value < 0 or value > 10000:
+        await message.answer("Допустимый диапазон: 0–10000.")
+        return
+
+    live_db.set_control("live_max_trades_per_day", str(value))
+    await message.answer(
+        "✅ Дневной лимит сделок: "
+        + ("без лимита" if value == 0 else str(value))
+    )
+
+
+@dispatcher.message(Command("daily_loss_limit"))
+async def set_daily_loss_limit(message: Message):
+    if not allowed(message.from_user):
+        return
+    if not settings.runtime_trade_limits_enabled:
+        await message.answer("Изменение лимитов отключено в .env.")
+        return
+
+    parts = (message.text or "").split(maxsplit=1)
+    if len(parts) != 2:
+        await message.answer(
+            "Использование:\n"
+            "/daily_loss_limit 10 — стоп после -10 USDT\n"
+            "/daily_loss_limit 0 — отключить monetary loss-stop"
+        )
+        return
+    try:
+        value = float(parts[1].replace(",", ".").strip())
+    except ValueError:
+        await message.answer("Лимит должен быть числом.")
+        return
+    if value < 0 or value > 1_000_000:
+        await message.answer("Некорректное значение.")
+        return
+
+    live_db.set_control("live_daily_loss_limit_usdt", str(value))
+    await message.answer(
+        "✅ Дневной loss-stop: "
+        + ("выключен" if value == 0 else f"{value:.2f} USDT")
+    )
+
+
+@dispatcher.message(Command("limits"))
+async def limits_status(message: Message):
+    if not allowed(message.from_user):
+        return
+    count, pnl = live_db.today()
+    trade_limit = effective_trade_limit()
+    loss_limit = effective_daily_loss_limit()
+    trade_text = "без лимита" if trade_limit == 0 else str(trade_limit)
+    loss_text = (
+        "выключен"
+        if loss_limit == 0
+        else f"{loss_limit:.2f} USDT"
+    )
+    await message.answer(
+        f"⚙️ Runtime Limits\n"
+        f"Сделок сегодня: {count}\n"
+        f"Лимит сделок: {trade_text}\n"
+        f"Текущий PnL: {pnl:+.2f} USDT\n"
+        f"Loss-stop: {loss_text}"
+    )
+
+
 @dispatcher.message(Command("status"))
 @dispatcher.message(F.text == "📊 Статус")
 async def status(message: Message):
     if not allowed(message.from_user): return
     count, pnl = live_db.today()
+    trade_limit = effective_trade_limit()
+    loss_limit = effective_daily_loss_limit()
+    trade_limit_text = (
+        "без лимита" if trade_limit == 0 else str(trade_limit)
+    )
+    loss_limit_text = (
+        "выключен"
+        if loss_limit == 0
+        else f"{loss_limit:.2f} USDT"
+    )
     await message.answer(
         f"Режим: {settings.trading_mode}\n"
         f"CONFIRM: {'разблокирован' if settings.confirm_unlocked else 'заблокирован'}\n"
         f"LIVE whitelist: {', '.join(sorted(settings.live_whitelist))}\n"
-        f"Сделок сегодня: {count}/{settings.live_max_trades_per_day}\n"
+        f"Сделок сегодня: {count}/{trade_limit_text}\n"
+        f"Дневной loss-stop: {loss_limit_text}\n"
         f"Зафиксированный дневной PnL: {pnl:+.2f} USDT\n"
-        f"Автоскан: {'работает' if scan_running else 'пауза'}"
+        f"Автоскан: {'работает' if scan_running else 'пауза'}\n"
+        f"Следующий интервал: {adaptive_scan_interval()} сек."
     )
 
 
@@ -1018,7 +1181,7 @@ async def position_intelligence_loop(bot: Bot):
 
 async def auto_scan_loop(bot: Bot):
     while True:
-        await asyncio.sleep(settings.scan_interval_seconds)
+        await asyncio.sleep(adaptive_scan_interval())
         if scan_running:
             for chat_id in settings.allowed_user_ids:
                 try:
@@ -1053,6 +1216,9 @@ async def main():
         BotCommand(command="macro_events", description="Ближайшие события"),
         BotCommand(command="near", description="Почти готовые сигналы"),
         BotCommand(command="watchlist", description="Watchlist сканера"),
+        BotCommand(command="limits", description="Текущие лимиты"),
+        BotCommand(command="trade_limit", description="Лимит сделок 0=∞"),
+        BotCommand(command="daily_loss_limit", description="Дневной loss-stop"),
         BotCommand(command="confirm_trade", description="Подтвердить LIVE-сделку"),
     ])
     asyncio.create_task(auto_scan_loop(bot))

@@ -1,4 +1,4 @@
-# MEXC AI Trader Pro v1.3.1 — Scanner Watchlist & Near Signals
+# MEXC AI Trader Pro v1.3.2 — Adaptive Scanner & Flexible Limits
 
 Реальные сделки по нескольким разрешённым фьючерсным парам с обязательным ручным подтверждением.
 
@@ -261,3 +261,25 @@ nano data/macro_events.json
 
 LIVE-порог и защитные фильтры не снижены. Near signal нельзя подготовить
 к реальной сделке, пока он не станет полноценным сигналом.
+
+
+## v1.3.2 Adaptive Scanner & Flexible Limits
+
+Сканер ускоряется при near signals и ещё сильнее при RISING-кандидатах.
+Переходы в RISING/READY сопровождаются Telegram-уведомлением.
+
+`LIVE_MAX_TRADES_PER_DAY=0` означает отсутствие дневного ограничения
+количества сделок.
+
+Команды:
+
+```text
+/trade_limit 5
+/trade_limit 0
+/daily_loss_limit 10
+/daily_loss_limit 0
+/limits
+```
+
+Runtime-значения сохраняются в SQLite и переживают перезапуск.
+Остальные защитные слои продолжают действовать.
