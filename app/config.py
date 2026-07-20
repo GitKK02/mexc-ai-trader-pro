@@ -189,6 +189,15 @@ class Settings(BaseSettings):
     adaptive_scanner_notify_promotions: bool = True
     adaptive_scanner_promotion_cooldown_seconds: int = 300
     runtime_trade_limits_enabled: bool = True
+    whitelist_manager_enabled: bool = True
+    whitelist_top_limit: int = 100
+    whitelist_min_turnover_usdt: float = 20_000_000
+    whitelist_max_spread_percent: float = 0.20
+    whitelist_require_api_allowed: bool = True
+    whitelist_require_active_state: bool = True
+    whitelist_auto_update_enabled: bool = False
+    whitelist_auto_update_interval_hours: int = 24
+    whitelist_bluechips: str = "BTC_USDT,ETH_USDT,BNB_USDT,SOL_USDT,XRP_USDT,DOGE_USDT,ADA_USDT,LINK_USDT,AVAX_USDT,DOT_USDT,LTC_USDT,TRX_USDT,ATOM_USDT,NEAR_USDT,APT_USDT,ARB_USDT,OP_USDT,SUI_USDT,TON_USDT"
     portfolio_correlation_groups: str = (
         "BTC:BTC_USDT;"
         "LARGE_CAP:ETH_USDT,BNB_USDT;"
@@ -238,6 +247,14 @@ class Settings(BaseSettings):
                 if symbol.strip()
             }
         return groups
+
+    @property
+    def whitelist_bluechip_symbols(self) -> set[str]:
+        return {
+            value.strip().upper()
+            for value in self.whitelist_bluechips.split(",")
+            if value.strip()
+        }
 
     @property
     def live_whitelist(self) -> set[str]:

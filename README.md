@@ -1,4 +1,4 @@
-# MEXC AI Trader Pro v1.3.2 — Adaptive Scanner & Flexible Limits
+# MEXC AI Trader Pro v1.3.3 — Whitelist Manager
 
 Реальные сделки по нескольким разрешённым фьючерсным парам с обязательным ручным подтверждением.
 
@@ -283,3 +283,14 @@ LIVE-порог и защитные фильтры не снижены. Near sig
 
 Runtime-значения сохраняются в SQLite и переживают перезапуск.
 Остальные защитные слои продолжают действовать.
+
+
+## v1.3.3 Whitelist Manager
+
+Команды `/allow_all_top100`, `/allow_bluechips`, `/allow SYMBOL`,
+`/deny SYMBOL`, `/whitelist`, `/clear_whitelist` управляют динамическим
+LIVE whitelist. Данные сохраняются в SQLite.
+
+`/allow_all_top100` выбирает только активные API-доступные USDT-фьючерсы,
+проходящие минимальный оборот и максимальный спред. Это не отключает Smart
+Risk, Portfolio Manager, Decision Engine или подтверждение сделки.

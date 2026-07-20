@@ -106,7 +106,10 @@ class MultiAssetConfirmService:
 
     async def prepare(self, signal) -> TradePlan:
         symbol = signal.symbol.upper()
-        if symbol not in self.settings.live_whitelist:
+        effective_whitelist = self.db.effective_live_whitelist(
+            self.settings.live_whitelist
+        )
+        if symbol not in effective_whitelist:
             raise ValueError("Пара не входит в LIVE whitelist")
         if signal.score < self.settings.min_signal_score_confirm:
             raise ValueError("Оценка сигнала ниже CONFIRM-порога")

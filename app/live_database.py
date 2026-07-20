@@ -120,6 +120,44 @@ class LiveDatabase:
             return configured
         return max(0, value)
 
+    def set_live_whitelist(self, symbols: set[str]) -> None:
+        import json
+
+        normalized = sorted({
+            symbol.strip().upper()
+            for symbol in symbols
+            if symbol.strip()
+        })
+        self.set_control(
+            "live_symbol_whitelist",
+            json.dumps(normalized),
+        )
+
+    def runtime_live_whitelist(self) -> set[str] | None:
+        import json
+
+        raw = self.get_control("live_symbol_whitelist")
+        if raw is None:
+            return None
+        try:
+            values = json.loads(raw)
+        except (TypeError, ValueError, json.JSONDecodeError):
+            return None
+        if not isinstance(values, list):
+            return None
+        return {
+            str(value).strip().upper()
+            for value in values
+            if str(value).strip()
+        }
+
+    def effective_live_whitelist(
+        self,
+        configured: set[str],
+    ) -> set[str]:
+        runtime = self.runtime_live_whitelist()
+        return configured if runtime is None else runtime
+
     def effective_daily_loss_limit(
         self,
         configured: float,

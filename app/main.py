@@ -21,6 +21,7 @@ from app.position_actions import ConfirmedPositionActions
 from app.macro_guard import NewsMacroGuard
 from app.scanner import Scanner
 from app.scanner_watchlist import ScannerWatchlist
+from app.whitelist_manager import LiveWhitelistManager
 from app.telegram_ui import (
     confirm_plan_actions,
     live_position_actions,
@@ -50,6 +51,9 @@ portfolio_manager = PortfolioRiskManager(settings)
 decision_engine = AIDecisionEngine(settings)
 dynamic_position_manager = DynamicPositionManager(settings)
 macro_guard = NewsMacroGuard(settings)
+whitelist_manager = LiveWhitelistManager(
+    settings, live_db, scanner.exchange, confirm_service.public_get
+)
 confirmed_position_actions = ConfirmedPositionActions(
     settings,
     confirm_service,
@@ -291,7 +295,7 @@ async def send_scan(bot: Bot, chat_id: int, force: bool) -> None:
 async def menu(message: Message):
     if not allowed(message.from_user): return
     await message.answer(
-        f"MEXC AI Trader Pro v1.3.2\n"
+        f"MEXC AI Trader Pro v1.3.3\n"
         f"Режим: {settings.trading_mode}\n"
         f"CONFIRM: {'РАЗБЛОКИРОВАН' if settings.confirm_unlocked else 'заблокирован'}",
         reply_markup=main_menu(scan_running, settings.confirm_unlocked),
@@ -1040,6 +1044,110 @@ async def limits_status(message: Message):
     )
 
 
+@dispatcher.message(Command("whitelist"))
+async def whitelist_status(message: Message):
+    if not allowed(message.from_user):
+        return
+    symbols = sorted(whitelist_manager.effective())
+    if not symbols:
+        await message.answer("LIVE whitelist пуст. Реальные входы запрещены.")
+        return
+    chunks = [symbols[index:index + 40] for index in range(0, len(symbols), 40)]
+    for index, chunk in enumerate(chunks, start=1):
+        await message.answer(
+            f"✅ LIVE whitelist: {len(symbols)} пар"
+            + (f" — часть {index}/{len(chunks)}" if len(chunks) > 1 else "")
+            + "\n\n"
+            + ", ".join(chunk)
+        )
+
+
+@dispatcher.message(Command("allow"))
+async def whitelist_allow(message: Message):
+    if not allowed(message.from_user):
+        return
+    parts = (message.text or "").split(maxsplit=1)
+    if len(parts) != 2:
+        await message.answer("Использование: /allow DOGE_USDT")
+        return
+    symbol = parts[1].strip().upper()
+    if not symbol.endswith("_USDT"):
+        await message.answer("Разрешены только символы вида DOGE_USDT.")
+        return
+    try:
+        spec = await confirm_service.contract_spec(symbol)
+    except Exception:
+        await message.answer("Контракт не найден на MEXC.")
+        return
+    if not spec.api_allowed or spec.state != 0:
+        await message.answer("Контракт сейчас недоступен для API-торговли.")
+        return
+    symbols = whitelist_manager.allow(symbol)
+    await message.answer(f"✅ {symbol} добавлена. Всего: {len(symbols)}")
+
+
+@dispatcher.message(Command("deny"))
+async def whitelist_deny(message: Message):
+    if not allowed(message.from_user):
+        return
+    parts = (message.text or "").split(maxsplit=1)
+    if len(parts) != 2:
+        await message.answer("Использование: /deny DOGE_USDT")
+        return
+    symbol = parts[1].strip().upper()
+    symbols = whitelist_manager.deny(symbol)
+    await message.answer(f"✅ {symbol} удалена. Всего: {len(symbols)}")
+
+
+@dispatcher.message(Command("clear_whitelist"))
+async def whitelist_clear(message: Message):
+    if not allowed(message.from_user):
+        return
+    whitelist_manager.clear()
+    await message.answer(
+        "⚠️ LIVE whitelist очищен. Все новые реальные входы запрещены."
+    )
+
+
+@dispatcher.message(Command("allow_bluechips"))
+async def whitelist_bluechips(message: Message):
+    if not allowed(message.from_user):
+        return
+    await message.answer("Проверяю blue-chip контракты MEXC...")
+    try:
+        result = await whitelist_manager.build_bluechips()
+    except Exception:
+        logger.exception("bluechip whitelist build failed")
+        await message.answer("Не удалось обновить whitelist.")
+        return
+    await message.answer(
+        f"✅ Blue-chip whitelist обновлён: {len(result.symbols)} пар."
+    )
+
+
+@dispatcher.message(Command("allow_all_top100"))
+async def whitelist_top100(message: Message):
+    if not allowed(message.from_user):
+        return
+    await message.answer(
+        "Проверяю USDT-фьючерсы, ликвидность, спред и API-доступ..."
+    )
+    try:
+        result = await whitelist_manager.build_top(100)
+    except Exception:
+        logger.exception("top100 whitelist build failed")
+        await message.answer("Не удалось сформировать whitelist.")
+        return
+    rejected = ", ".join(
+        f"{key}={value}" for key, value in sorted(result.rejected.items())
+    ) or "нет"
+    await message.answer(
+        f"✅ LIVE whitelist обновлён: {len(result.symbols)} пар.\n"
+        f"Отфильтровано: {rejected}\n\n"
+        f"Проверь список командой /whitelist"
+    )
+
+
 @dispatcher.message(Command("status"))
 @dispatcher.message(F.text == "📊 Статус")
 async def status(message: Message):
@@ -1058,7 +1166,7 @@ async def status(message: Message):
     await message.answer(
         f"Режим: {settings.trading_mode}\n"
         f"CONFIRM: {'разблокирован' if settings.confirm_unlocked else 'заблокирован'}\n"
-        f"LIVE whitelist: {', '.join(sorted(settings.live_whitelist))}\n"
+        f"LIVE whitelist: {len(whitelist_manager.effective())} пар\n"
         f"Сделок сегодня: {count}/{trade_limit_text}\n"
         f"Дневной loss-stop: {loss_limit_text}\n"
         f"Зафиксированный дневной PnL: {pnl:+.2f} USDT\n"
@@ -1179,6 +1287,31 @@ async def position_intelligence_loop(bot: Bot):
             logger.exception("position intelligence loop failed")
 
 
+
+async def whitelist_auto_update_loop(bot: Bot):
+    while True:
+        await asyncio.sleep(
+            max(1, settings.whitelist_auto_update_interval_hours) * 3600
+        )
+        if not (
+            settings.whitelist_manager_enabled
+            and settings.whitelist_auto_update_enabled
+        ):
+            continue
+        try:
+            result = await whitelist_manager.build_top(
+                settings.whitelist_top_limit
+            )
+            for chat_id in settings.allowed_user_ids:
+                await bot.send_message(
+                    chat_id,
+                    f"🔄 LIVE whitelist обновлён автоматически: "
+                    f"{len(result.symbols)} пар."
+                )
+        except Exception:
+            logger.exception("automatic whitelist update failed")
+
+
 async def auto_scan_loop(bot: Bot):
     while True:
         await asyncio.sleep(adaptive_scan_interval())
@@ -1219,9 +1352,15 @@ async def main():
         BotCommand(command="limits", description="Текущие лимиты"),
         BotCommand(command="trade_limit", description="Лимит сделок 0=∞"),
         BotCommand(command="daily_loss_limit", description="Дневной loss-stop"),
+        BotCommand(command="whitelist", description="LIVE whitelist"),
+        BotCommand(command="allow", description="Разрешить пару"),
+        BotCommand(command="deny", description="Запретить пару"),
+        BotCommand(command="allow_bluechips", description="Blue-chip whitelist"),
+        BotCommand(command="allow_all_top100", description="Топ-100 ликвидных пар"),
         BotCommand(command="confirm_trade", description="Подтвердить LIVE-сделку"),
     ])
     asyncio.create_task(auto_scan_loop(bot))
+    asyncio.create_task(whitelist_auto_update_loop(bot))
     asyncio.create_task(position_intelligence_loop(bot))
     await dispatcher.start_polling(bot)
 
