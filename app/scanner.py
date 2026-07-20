@@ -10,6 +10,7 @@ from app.models import Signal
 from app.volatility_guard import VolatilityLiquidityGuard
 from app.market_regime import MarketRegimeEngine
 from app.macro_guard import NewsMacroGuard
+from app.entry_intelligence import EntryIntelligence
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +27,7 @@ class Scanner:
         self.volatility_guard = VolatilityLiquidityGuard(settings)
         self.market_regime_engine = MarketRegimeEngine(settings)
         self.macro_guard = NewsMacroGuard(settings)
+        self.entry_intelligence = EntryIntelligence(settings)
         self.near_signals: list[Signal] = []
         self.all_candidates: list[Signal] = []
         self._semaphore = asyncio.Semaphore(
@@ -152,6 +154,8 @@ class Scanner:
                 signal = self.market_regime_engine.attach(signal)
             if self.settings.macro_guard_enabled:
                 signal = self.macro_guard.attach(signal)
+            if self.settings.entry_intelligence_enabled:
+                signal = self.entry_intelligence.attach(signal)
             signals.append(signal)
         signals.sort(key=lambda signal: signal.score, reverse=True)
         self.all_candidates = signals

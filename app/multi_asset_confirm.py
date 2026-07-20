@@ -124,8 +124,14 @@ class MultiAssetConfirmService:
             )
 
         positions = await self.private.open_positions()
-        if len(positions) >= self.settings.live_max_open_positions:
-            raise ValueError("Достигнут лимит открытых позиций")
+        if (
+            self.settings.live_max_open_positions > 0
+            and len(positions) >= self.settings.live_max_open_positions
+        ):
+            raise ValueError(
+                f"Достигнут лимит открытых позиций: "
+                f"{len(positions)}/{self.settings.live_max_open_positions}"
+            )
 
         equity = await self.account_equity()
         requested = min(

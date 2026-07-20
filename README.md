@@ -294,3 +294,13 @@ LIVE whitelist. Данные сохраняются в SQLite.
 `/allow_all_top100` выбирает только активные API-доступные USDT-фьючерсы,
 проходящие минимальный оборот и максимальный спред. Это не отключает Smart
 Risk, Portfolio Manager, Decision Engine или подтверждение сделки.
+
+## v1.4.0 Entry Intelligence & Entry Flow
+
+The scanner now separates signal strength from entry quality. It classifies the
+current entry as EARLY, GOOD, LATE or CHASE, exposes the setup phase, measures
+distance from the breakout/pullback anchor in ATR, and blocks chasing when too
+little reward remains before TP1. Decision Engine defaults are softened to
+CONFIRM=75 and WAIT=72, while hard portfolio, macro, volatility and panic guards
+remain active. Telegram now explains the concrete reasons for WAIT instead of
+showing only a generic rejection.

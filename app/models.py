@@ -61,6 +61,15 @@ class Signal:
     watchlist_delta: int = 0
     watchlist_streak: int = 1
     watchlist_status: str = "NEW"
+    entry_quality_score: int | None = None
+    entry_timing: str = "UNKNOWN"
+    entry_phase: str = "SETUP"
+    entry_allowed: bool | None = None
+    entry_distance_atr: float = 0.0
+    entry_distance_percent: float = 0.0
+    entry_remaining_tp1_r: float = 0.0
+    entry_reasons: list[str] | None = None
+    decision_created_at: str = ""
 
 
 @dataclass(slots=True)

@@ -29,6 +29,8 @@ class TimeframeAnalysis:
     momentum_percent: float
     bollinger_width_percent: float
     latest_close: float
+    breakout_level: float
+    impulse_candles: int
     reasons: list[str]
 
 
@@ -57,6 +59,25 @@ def analyze_timeframe(
     average_volume = sum(volumes[-21:-1]) / 20 if len(volumes) >= 21 else 0
     relative_volume = volumes[-1] / average_volume if average_volume else 0
     momentum = (closes[-1] - closes[-5]) / closes[-5] * 100
+    prior_high = max(float(item["high"]) for item in candles[-21:-1])
+    prior_low = min(float(item["low"]) for item in candles[-21:-1])
+    impulse_candles = 0
+    for index in range(len(candles) - 1, max(len(candles) - 7, 0), -1):
+        candle = candles[index]
+        bullish = float(candle["close"]) > float(candle["open"])
+        bearish = float(candle["close"]) < float(candle["open"])
+        if bullish:
+            impulse_candles += 1
+        else:
+            break
+    bearish_impulse_candles = 0
+    for index in range(len(candles) - 1, max(len(candles) - 7, 0), -1):
+        candle = candles[index]
+        bearish = float(candle["close"]) < float(candle["open"])
+        if bearish:
+            bearish_impulse_candles += 1
+        else:
+            break
 
     reasons: list[str] = []
     long_score = 0
@@ -137,6 +158,10 @@ def analyze_timeframe(
         momentum_percent=momentum,
         bollinger_width_percent=width,
         latest_close=last,
+        breakout_level=prior_high if side == "LONG" else prior_low,
+        impulse_candles=(
+            impulse_candles if side == "LONG" else bearish_impulse_candles
+        ),
         reasons=reasons,
     )
 
@@ -221,6 +246,13 @@ def combine_timeframes(
         "primary_atr_percent": round(primary.atr_percent, 3),
         "primary_relative_volume": round(primary.relative_volume, 2),
         "primary_momentum_percent": round(primary.momentum_percent, 3),
+        "primary_ema20": round(primary.ema20, 8),
+        "primary_ema50": round(primary.ema50, 8),
+        "primary_breakout_level": round(primary.breakout_level, 8),
+        "primary_impulse_candles": primary.impulse_candles,
+        "primary_bollinger_width_percent": round(
+            primary.bollinger_width_percent, 3
+        ),
     }
 
     return Signal(

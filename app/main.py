@@ -86,6 +86,11 @@ def signal_text(signal: Signal) -> str:
         f"Portfolio score: {signal.portfolio_score if signal.portfolio_score is not None else '—'}\n"
         f"Decision score: {signal.decision_score if signal.decision_score is not None else '—'}\n"
         f"Решение: {signal.decision_action} ({signal.decision_confidence})\n"
+        f"Entry quality: {signal.entry_quality_score if signal.entry_quality_score is not None else '—'}/100\n"
+        f"Timing: {signal.entry_timing} | Фаза: {signal.entry_phase}\n"
+        f"От зоны: {signal.entry_distance_atr:+.2f} ATR "
+        f"({signal.entry_distance_percent:.2f}%)\n"
+        f"До TP1: {signal.entry_remaining_tp1_r:.2f}R\n"
         f"Волатильность: {signal.volatility_state}\n"
         f"Ликвидность: {signal.liquidity_state}\n"
         f"Режим 2.0: {signal.detailed_regime}\n"
@@ -287,7 +292,24 @@ async def send_scan(bot: Bot, chat_id: int, force: bool) -> None:
         sent_cache[key] = now
         sent += 1
     if not sent:
-        await bot.send_message(chat_id, "Новых сигналов нет: действует cooldown.")
+        active = []
+        for signal in signals:
+            key = f"{signal.symbol}:{signal.side}"
+            previous = sent_cache.get(key)
+            if not previous:
+                continue
+            remaining = max(
+                0,
+                settings.signal_cooldown_minutes
+                - int((now - previous).total_seconds() // 60),
+            )
+            active.append(f"{signal.symbol} {remaining}м")
+        details = ", ".join(active[:5]) or "по ранее отправленным парам"
+        await bot.send_message(
+            chat_id,
+            "Скан завершён: подходящие сигналы уже отправлялись. "
+            f"Cooldown: {details}. Автоскан продолжает работать.",
+        )
 
 
 @dispatcher.message(Command("start", "menu"))
@@ -295,7 +317,7 @@ async def send_scan(bot: Bot, chat_id: int, force: bool) -> None:
 async def menu(message: Message):
     if not allowed(message.from_user): return
     await message.answer(
-        f"MEXC AI Trader Pro v1.3.3\n"
+        f"MEXC AI Trader Pro v1.4.0\n"
         f"Режим: {settings.trading_mode}\n"
         f"CONFIRM: {'РАЗБЛОКИРОВАН' if settings.confirm_unlocked else 'заблокирован'}",
         reply_markup=main_menu(scan_running, settings.confirm_unlocked),
@@ -323,13 +345,46 @@ async def confirm_prepare(callback: CallbackQuery):
     signal = pending_signals.get(token)
     if not signal:
         await callback.answer("Сигнал устарел", show_alert=True); return
+    if signal.decision_created_at:
+        try:
+            decision_created = datetime.fromisoformat(signal.decision_created_at)
+            decision_age = (
+                datetime.now(timezone.utc) - decision_created
+            ).total_seconds()
+            if decision_age > settings.decision_cache_ttl_seconds:
+                await callback.answer(
+                    "Решение устарело. Запусти новый скан: рыночная "
+                    f"оценка старше {settings.decision_cache_ttl_seconds} сек.",
+                    show_alert=True,
+                )
+                return
+        except ValueError:
+            pass
     if (
         settings.decision_engine_enabled
         and signal.decision_action not in {"ENTER", "CONFIRM"}
     ):
+        reasons = [
+            *(signal.decision_reasons or []),
+            *(signal.entry_reasons or []),
+            *(signal.portfolio_reasons or []),
+        ]
+        unique_reasons = list(dict.fromkeys(reason for reason in reasons if reason))
+        age_text = "неизвестен"
+        if signal.decision_created_at:
+            try:
+                created = datetime.fromisoformat(signal.decision_created_at)
+                age_text = f"{int((datetime.now(timezone.utc) - created).total_seconds())} сек"
+            except ValueError:
+                pass
+        detail = "\n".join(f"• {reason}" for reason in unique_reasons[:4])
         await callback.answer(
-            f"Decision Engine: {signal.decision_action}. "
-            "Реальная подготовка заблокирована.",
+            f"LIVE заблокирован: {signal.decision_action} "
+            f"({signal.decision_score}/100, нужно ≥"
+            f"{settings.decision_confirm_score}).\n"
+            f"Entry: {signal.entry_quality_score}/100, {signal.entry_timing}.\n"
+            f"Возраст решения: {age_text}.\n"
+            f"{detail or 'Нет подробной причины.'}",
             show_alert=True,
         )
         return

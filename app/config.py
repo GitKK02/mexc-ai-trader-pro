@@ -82,8 +82,8 @@ class Settings(BaseSettings):
     portfolio_max_total_risk_percent: float = 0.50
     portfolio_max_same_direction_risk_percent: float = 0.35
     portfolio_max_group_risk_percent: float = 0.25
-    portfolio_max_positions_per_group: int = 1
-    portfolio_min_adjusted_score_confirm: int = 80
+    portfolio_max_positions_per_group: int = 3
+    portfolio_min_adjusted_score_confirm: int = 72
     portfolio_reduce_score_same_direction: int = 8
     portfolio_reduce_score_same_group: int = 15
     portfolio_block_same_symbol: bool = True
@@ -91,17 +91,29 @@ class Settings(BaseSettings):
 
     decision_engine_enabled: bool = True
     decision_enter_score: int = 90
-    decision_confirm_score: int = 82
+    decision_confirm_score: int = 75
     decision_wait_score: int = 72
     decision_require_ai_for_enter: bool = True
     decision_block_on_ai_error: bool = False
     decision_ai_approve_bonus: int = 6
-    decision_ai_wait_penalty: int = 6
+    decision_ai_wait_penalty: int = 3
     decision_ai_reject_penalty: int = 30
     decision_trend_regime_bonus: int = 5
     decision_range_regime_penalty: int = 8
     decision_unstable_btc_penalty: int = 12
     decision_min_timeframe_agreement: int = 3
+    decision_cache_ttl_seconds: int = 180
+
+    entry_intelligence_enabled: bool = True
+    entry_chase_guard_enabled: bool = True
+    entry_max_distance_atr: float = 0.90
+    entry_late_distance_atr: float = 0.60
+    entry_max_distance_percent: float = 1.20
+    entry_max_impulse_candles: int = 3
+    entry_high_momentum_percent: float = 1.50
+    entry_min_remaining_tp1_r: float = 0.70
+    entry_min_quality_confirm: int = 60
+    entry_quality_weight: float = 0.20
 
     position_intelligence_enabled: bool = True
     position_intelligence_poll_seconds: int = 20

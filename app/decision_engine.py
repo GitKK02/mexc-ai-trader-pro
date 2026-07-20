@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from datetime import datetime, timezone
 
 from app.models import Signal
 
@@ -73,18 +74,29 @@ class AIDecisionEngine:
         )
         momentum = self._momentum_component(signal)
 
+        entry_quality = (
+            int(signal.entry_quality_score)
+            if signal.entry_quality_score is not None
+            else scanner
+        )
         components = {
             "scanner": scanner,
             "timeframes": timeframe,
             "momentum": momentum,
             "portfolio": portfolio,
+            "entry": entry_quality,
         }
 
+        entry_weight = max(0.0, min(float(getattr(self.settings, "entry_quality_weight", 0.20)), 0.40))
+        base_weight = 1.0 - entry_weight
         weighted = round(
-            scanner * 0.30
-            + timeframe * 0.25
-            + momentum * 0.20
-            + portfolio * 0.25
+            (
+                scanner * 0.30
+                + timeframe * 0.25
+                + momentum * 0.20
+                + portfolio * 0.25
+            ) * base_weight
+            + entry_quality * entry_weight
         )
 
         agreement = self._agreement(signal)
@@ -146,6 +158,21 @@ class AIDecisionEngine:
                 )
         else:
             reasons.append("OpenAI-проверка не выполнена")
+
+        if signal.entry_allowed is False:
+            weighted = min(weighted, self.settings.decision_wait_score - 1)
+            reasons.extend(signal.entry_reasons or [])
+            reasons.append("Entry Intelligence запретил поздний вход")
+        elif entry_quality < getattr(self.settings, "entry_min_quality_confirm", 60):
+            weighted = min(weighted, self.settings.decision_confirm_score - 1)
+            reasons.extend(signal.entry_reasons or [])
+            reasons.append("Качество текущей точки входа ниже CONFIRM-порога")
+        elif signal.entry_timing == "LATE":
+            weighted -= 8
+            reasons.extend(signal.entry_reasons or [])
+        elif signal.entry_timing == "GOOD":
+            weighted += 4
+            reasons.append("Точка входа находится в рабочей зоне")
 
         if signal.portfolio_allowed is False:
             weighted = min(
@@ -231,6 +258,7 @@ class AIDecisionEngine:
         signal.decision_confidence = result.confidence
         signal.decision_reasons = result.reasons
         signal.component_scores = result.components
+        signal.decision_created_at = datetime.now(timezone.utc).isoformat()
         return signal
 
     def rank(self, signals: list[Signal]) -> list[Signal]:
