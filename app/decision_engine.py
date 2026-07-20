@@ -79,16 +79,23 @@ class AIDecisionEngine:
             if signal.entry_quality_score is not None
             else scanner
         )
+        confluence = (
+            int(signal.confluence_score)
+            if signal.confluence_score is not None
+            else scanner
+        )
         components = {
             "scanner": scanner,
             "timeframes": timeframe,
             "momentum": momentum,
             "portfolio": portfolio,
             "entry": entry_quality,
+            "confluence": confluence,
         }
 
         entry_weight = max(0.0, min(float(getattr(self.settings, "entry_quality_weight", 0.20)), 0.40))
-        base_weight = 1.0 - entry_weight
+        confluence_weight = max(0.0, min(float(getattr(self.settings, "confluence_weight", 0.20)), 0.40))
+        base_weight = max(0.20, 1.0 - entry_weight - confluence_weight)
         weighted = round(
             (
                 scanner * 0.30
@@ -97,6 +104,7 @@ class AIDecisionEngine:
                 + portfolio * 0.25
             ) * base_weight
             + entry_quality * entry_weight
+            + confluence * confluence_weight
         )
 
         agreement = self._agreement(signal)
@@ -173,6 +181,20 @@ class AIDecisionEngine:
         elif signal.entry_timing == "GOOD":
             weighted += 4
             reasons.append("Точка входа находится в рабочей зоне")
+
+        if signal.confluence_allowed is False:
+            reasons.extend(signal.confluence_reasons or [])
+            if getattr(self.settings, "confluence_block_below_minimum", True):
+                weighted = min(weighted, self.settings.decision_wait_score - 1)
+                reasons.append("Confluence Engine запретил вход")
+            else:
+                weighted -= 8
+        elif signal.confluence_confirmations:
+            reasons.append(
+                f"Confluence: {signal.confluence_confirmations}/{signal.confluence_total} подтверждений"
+            )
+            if signal.confluence_confirmations >= 7:
+                weighted += 4
 
         if signal.portfolio_allowed is False:
             weighted = min(

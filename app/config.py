@@ -115,6 +115,16 @@ class Settings(BaseSettings):
     entry_min_quality_confirm: int = 60
     entry_quality_weight: float = 0.20
 
+    confluence_engine_enabled: bool = True
+    confluence_min_confirmations: int = 6
+    confluence_min_scanner_score: int = 72
+    confluence_min_entry_quality: int = 65
+    confluence_min_timeframe_agreement: int = 3
+    confluence_min_relative_volume: float = 0.80
+    confluence_min_adx: float = 18.0
+    confluence_weight: float = 0.20
+    confluence_block_below_minimum: bool = True
+
     position_intelligence_enabled: bool = True
     position_intelligence_poll_seconds: int = 20
     position_intelligence_mode: str = "SHADOW"

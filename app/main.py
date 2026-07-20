@@ -11,6 +11,7 @@ from aiogram.types import BotCommand, CallbackQuery, Message
 from app.config import settings
 from app.database import Database
 from app.decision_engine import AIDecisionEngine
+from app.confluence_engine import ConfluenceEngine
 from app.live_database import LiveDatabase
 from app.models import Signal
 from app.multi_asset_confirm import MultiAssetConfirmService
@@ -49,6 +50,7 @@ live_db = LiveDatabase(settings.live_database_path)
 confirm_service = MultiAssetConfirmService(settings, live_db)
 portfolio_manager = PortfolioRiskManager(settings)
 decision_engine = AIDecisionEngine(settings)
+confluence_engine = ConfluenceEngine(settings)
 dynamic_position_manager = DynamicPositionManager(settings)
 macro_guard = NewsMacroGuard(settings)
 whitelist_manager = LiveWhitelistManager(
@@ -87,6 +89,8 @@ def signal_text(signal: Signal) -> str:
         f"Decision score: {signal.decision_score if signal.decision_score is not None else '—'}\n"
         f"Решение: {signal.decision_action} ({signal.decision_confidence})\n"
         f"Entry quality: {signal.entry_quality_score if signal.entry_quality_score is not None else '—'}/100\n"
+        f"Confluence: {signal.confluence_confirmations}/{signal.confluence_total} "
+        f"({signal.confluence_score if signal.confluence_score is not None else '—'}/100)\n"
         f"Timing: {signal.entry_timing} | Фаза: {signal.entry_phase}\n"
         f"От зоны: {signal.entry_distance_atr:+.2f} ATR "
         f"({signal.entry_distance_percent:.2f}%)\n"
@@ -209,6 +213,8 @@ async def send_scan(bot: Bot, chat_id: int, force: bool) -> None:
         logger.exception("portfolio snapshot failed")
         positions = []
     signals = attach_portfolio_scores(signals, positions)
+    if settings.confluence_engine_enabled:
+        signals = [confluence_engine.attach(signal) for signal in signals]
     if settings.decision_engine_enabled:
         signals = decision_engine.rank(signals)
     last_signals = signals
@@ -317,7 +323,7 @@ async def send_scan(bot: Bot, chat_id: int, force: bool) -> None:
 async def menu(message: Message):
     if not allowed(message.from_user): return
     await message.answer(
-        f"MEXC AI Trader Pro v1.4.0\n"
+        f"MEXC AI Trader Pro v1.5.0\n"
         f"Режим: {settings.trading_mode}\n"
         f"CONFIRM: {'РАЗБЛОКИРОВАН' if settings.confirm_unlocked else 'заблокирован'}",
         reply_markup=main_menu(scan_running, settings.confirm_unlocked),

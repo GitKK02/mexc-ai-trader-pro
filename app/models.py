@@ -70,6 +70,12 @@ class Signal:
     entry_remaining_tp1_r: float = 0.0
     entry_reasons: list[str] | None = None
     decision_created_at: str = ""
+    confluence_score: int | None = None
+    confluence_confirmations: int = 0
+    confluence_total: int = 0
+    confluence_allowed: bool | None = None
+    confluence_checks: dict[str, bool] | None = None
+    confluence_reasons: list[str] | None = None
 
 
 @dataclass(slots=True)

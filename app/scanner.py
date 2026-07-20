@@ -11,6 +11,7 @@ from app.volatility_guard import VolatilityLiquidityGuard
 from app.market_regime import MarketRegimeEngine
 from app.macro_guard import NewsMacroGuard
 from app.entry_intelligence import EntryIntelligence
+from app.confluence_engine import ConfluenceEngine
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +29,7 @@ class Scanner:
         self.market_regime_engine = MarketRegimeEngine(settings)
         self.macro_guard = NewsMacroGuard(settings)
         self.entry_intelligence = EntryIntelligence(settings)
+        self.confluence_engine = ConfluenceEngine(settings)
         self.near_signals: list[Signal] = []
         self.all_candidates: list[Signal] = []
         self._semaphore = asyncio.Semaphore(
@@ -156,6 +158,8 @@ class Scanner:
                 signal = self.macro_guard.attach(signal)
             if self.settings.entry_intelligence_enabled:
                 signal = self.entry_intelligence.attach(signal)
+            if self.settings.confluence_engine_enabled:
+                signal = self.confluence_engine.attach(signal)
             signals.append(signal)
         signals.sort(key=lambda signal: signal.score, reverse=True)
         self.all_candidates = signals
