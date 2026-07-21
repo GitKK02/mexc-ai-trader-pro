@@ -91,6 +91,14 @@ def signal_text(signal: Signal) -> str:
         f"Entry quality: {signal.entry_quality_score if signal.entry_quality_score is not None else '—'}/100\n"
         f"Confluence: {signal.confluence_confirmations}/{signal.confluence_total} "
         f"({signal.confluence_score if signal.confluence_score is not None else '—'}/100)\n"
+        f"Relative strength: {signal.relative_strength_score if signal.relative_strength_score is not None else '—'}/100 "
+        f"(rank {signal.relative_strength_rank or '—'})\n"
+        f"К BTC: {signal.relative_strength_vs_btc:+.2f}% | "
+        f"к рынку: {signal.relative_strength_vs_market:+.2f}%\n"
+        f"Market breadth: {signal.market_breadth_state} — "
+        f"LONG {signal.market_breadth_long_percent:.1f}% / "
+        f"SHORT {signal.market_breadth_short_percent:.1f}%\n"
+        f"Market Intelligence: {signal.market_intelligence_score if signal.market_intelligence_score is not None else '—'}/100\n"
         f"Timing: {signal.entry_timing} | Фаза: {signal.entry_phase}\n"
         f"От зоны: {signal.entry_distance_atr:+.2f} ATR "
         f"({signal.entry_distance_percent:.2f}%)\n"
@@ -323,7 +331,7 @@ async def send_scan(bot: Bot, chat_id: int, force: bool) -> None:
 async def menu(message: Message):
     if not allowed(message.from_user): return
     await message.answer(
-        f"MEXC AI Trader Pro v1.5.0\n"
+        f"MEXC AI Trader Pro v1.5.1\n"
         f"Режим: {settings.trading_mode}\n"
         f"CONFIRM: {'РАЗБЛОКИРОВАН' if settings.confirm_unlocked else 'заблокирован'}",
         reply_markup=main_menu(scan_running, settings.confirm_unlocked),
@@ -560,6 +568,29 @@ async def paper_skip(callback: CallbackQuery):
     if not allowed(callback.from_user): return
     pending_signals.pop(callback.data.split(":", 1)[1], None)
     await callback.answer("Пропущено")
+
+
+@dispatcher.message(Command("market"))
+@dispatcher.message(F.text == "🌐 Рынок")
+async def market_status(message: Message):
+    if not allowed(message.from_user):
+        return
+    snapshot = scanner.market_intelligence.last_snapshot
+    if snapshot.total_count == 0:
+        await message.answer("Market Intelligence пока пуст. Запусти сканирование.")
+        return
+    leaders = ", ".join(snapshot.leaders) or "—"
+    laggards = ", ".join(snapshot.laggards) or "—"
+    await message.answer(
+        "🌐 Market Intelligence\n\n"
+        f"Состояние: {snapshot.state}\n"
+        f"Проанализировано: {snapshot.total_count}\n"
+        f"LONG: {snapshot.long_count} ({snapshot.long_percent:.1f}%)\n"
+        f"SHORT: {snapshot.short_count} ({snapshot.short_percent:.1f}%)\n"
+        f"Нейтральные/слабые: {snapshot.neutral_count}\n\n"
+        f"Лидеры: {leaders}\n"
+        f"Отстающие: {laggards}"
+    )
 
 
 @dispatcher.message(Command("top"))

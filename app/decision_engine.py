@@ -84,6 +84,11 @@ class AIDecisionEngine:
             if signal.confluence_score is not None
             else scanner
         )
+        market = (
+            int(signal.market_intelligence_score)
+            if signal.market_intelligence_score is not None
+            else scanner
+        )
         components = {
             "scanner": scanner,
             "timeframes": timeframe,
@@ -91,11 +96,13 @@ class AIDecisionEngine:
             "portfolio": portfolio,
             "entry": entry_quality,
             "confluence": confluence,
+            "market": market,
         }
 
         entry_weight = max(0.0, min(float(getattr(self.settings, "entry_quality_weight", 0.20)), 0.40))
         confluence_weight = max(0.0, min(float(getattr(self.settings, "confluence_weight", 0.20)), 0.40))
-        base_weight = max(0.20, 1.0 - entry_weight - confluence_weight)
+        market_weight = max(0.0, min(float(getattr(self.settings, "market_intelligence_weight", 0.15)), 0.30))
+        base_weight = max(0.15, 1.0 - entry_weight - confluence_weight - market_weight)
         weighted = round(
             (
                 scanner * 0.30
@@ -105,6 +112,7 @@ class AIDecisionEngine:
             ) * base_weight
             + entry_quality * entry_weight
             + confluence * confluence_weight
+            + market * market_weight
         )
 
         agreement = self._agreement(signal)
@@ -195,6 +203,20 @@ class AIDecisionEngine:
             )
             if signal.confluence_confirmations >= 7:
                 weighted += 4
+
+        if signal.market_intelligence_allowed is False:
+            weighted = min(weighted, self.settings.decision_wait_score - 1)
+            reasons.extend(signal.market_intelligence_reasons or [])
+            reasons.append("Market Intelligence запретил вход против ширины рынка")
+        elif signal.market_intelligence_score is not None:
+            reasons.extend(signal.market_intelligence_reasons or [])
+            minimum_market = int(getattr(self.settings, "relative_strength_min_confirm_score", 55))
+            if signal.market_intelligence_score < minimum_market:
+                weighted = min(weighted, self.settings.decision_confirm_score - 1)
+                reasons.append("Относительная сила ниже CONFIRM-порога")
+            elif signal.relative_strength_rank and signal.relative_strength_rank <= 5:
+                weighted += 3
+                reasons.append("Пара входит в число лидеров относительной силы")
 
         if signal.portfolio_allowed is False:
             weighted = min(

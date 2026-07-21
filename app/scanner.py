@@ -12,6 +12,7 @@ from app.market_regime import MarketRegimeEngine
 from app.macro_guard import NewsMacroGuard
 from app.entry_intelligence import EntryIntelligence
 from app.confluence_engine import ConfluenceEngine
+from app.market_intelligence import MarketIntelligenceEngine
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +31,7 @@ class Scanner:
         self.macro_guard = NewsMacroGuard(settings)
         self.entry_intelligence = EntryIntelligence(settings)
         self.confluence_engine = ConfluenceEngine(settings)
+        self.market_intelligence = MarketIntelligenceEngine(settings)
         self.near_signals: list[Signal] = []
         self.all_candidates: list[Signal] = []
         self._semaphore = asyncio.Semaphore(
@@ -100,8 +102,6 @@ class Scanner:
         signal = combine_timeframes(symbol, analyses, btc_context)
         if signal is None:
             return None
-        if signal.score < self.settings.scanner_near_signal_score:
-            return None
         signal.near_signal = (
             signal.score < self.settings.min_signal_score_paper
         )
@@ -161,7 +161,15 @@ class Scanner:
             if self.settings.confluence_engine_enabled:
                 signal = self.confluence_engine.attach(signal)
             signals.append(signal)
-        signals.sort(key=lambda signal: signal.score, reverse=True)
+        if self.settings.market_intelligence_enabled:
+            signals = self.market_intelligence.attach_all(signals)
+        signals.sort(
+            key=lambda signal: (
+                signal.score * 0.75
+                + (signal.market_intelligence_score or signal.score) * 0.25
+            ),
+            reverse=True,
+        )
         self.all_candidates = signals
         qualified = [
             signal

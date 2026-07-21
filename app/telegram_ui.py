@@ -7,8 +7,9 @@ def main_menu(running: bool, confirm_enabled: bool = False) -> ReplyKeyboardMark
         [KeyboardButton(text="📡 Сканировать сейчас"), KeyboardButton(text="📊 Статус")],
         [KeyboardButton(text=scan_button), KeyboardButton(text="💼 Портфель")],
         [KeyboardButton(text="📈 Позиции"), KeyboardButton(text="📜 История")],
-        [KeyboardButton(text="🏆 Топ сигналов"), KeyboardButton(text="🔥 Почти готово")],
-        [KeyboardButton(text="👀 Watchlist"), KeyboardButton(text="🛡 Риск")],
+        [KeyboardButton(text="🏆 Топ сигналов"), KeyboardButton(text="🌐 Рынок")],
+        [KeyboardButton(text="🔥 Почти готово"), KeyboardButton(text="👀 Watchlist")],
+        [KeyboardButton(text="🛡 Риск")],
         [KeyboardButton(text="🧭 Совет по позициям")],
         [KeyboardButton(text="🧾 Отчёт"), KeyboardButton(text="🏠 Меню")],
     ]

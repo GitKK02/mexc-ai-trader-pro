@@ -304,3 +304,7 @@ little reward remains before TP1. Decision Engine defaults are softened to
 CONFIRM=75 and WAIT=72, while hard portfolio, macro, volatility and panic guards
 remain active. Telegram now explains the concrete reasons for WAIT instead of
 showing only a generic rejection.
+
+## Market Intelligence v1.5.1
+
+The scanner now compares each candidate with BTC and the market median, ranks relative-strength leaders, measures LONG/SHORT market breadth, and can block entries that run against a strong market-wide direction. Telegram command: `/market`.

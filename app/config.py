@@ -125,6 +125,15 @@ class Settings(BaseSettings):
     confluence_weight: float = 0.20
     confluence_block_below_minimum: bool = True
 
+    market_intelligence_enabled: bool = True
+    market_intelligence_weight: float = 0.15
+    market_intelligence_leader_limit: int = 5
+    market_breadth_min_signal_score: int = 55
+    market_breadth_direction_threshold_percent: float = 60.0
+    market_breadth_block_strong_opposite: bool = True
+    relative_strength_percent_scale: float = 1.0
+    relative_strength_min_confirm_score: int = 55
+
     position_intelligence_enabled: bool = True
     position_intelligence_poll_seconds: int = 20
     position_intelligence_mode: str = "SHADOW"

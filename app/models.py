@@ -76,6 +76,16 @@ class Signal:
     confluence_allowed: bool | None = None
     confluence_checks: dict[str, bool] | None = None
     confluence_reasons: list[str] | None = None
+    relative_strength_score: int | None = None
+    relative_strength_rank: int = 0
+    relative_strength_vs_btc: float = 0.0
+    relative_strength_vs_market: float = 0.0
+    market_breadth_state: str = "UNKNOWN"
+    market_breadth_long_percent: float = 0.0
+    market_breadth_short_percent: float = 0.0
+    market_intelligence_score: int | None = None
+    market_intelligence_allowed: bool | None = None
+    market_intelligence_reasons: list[str] | None = None
 
 
 @dataclass(slots=True)
