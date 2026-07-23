@@ -204,6 +204,17 @@ class AIDecisionEngine:
             if signal.confluence_confirmations >= 7:
                 weighted += 4
 
+        if (
+            getattr(self.settings, "market_selection_enabled", True)
+            and getattr(self.settings, "market_selection_enforced", True)
+            and signal.market_opportunity_score is not None
+            and not signal.market_opportunity_selected
+        ):
+            weighted = min(weighted, self.settings.decision_wait_score - 1)
+            reasons.append(
+                f"Opportunity rank {signal.market_opportunity_rank}: сделка не вошла в рыночный TOP-{getattr(self.settings, 'market_selection_top_n', 3)}"
+            )
+
         if signal.market_intelligence_allowed is False:
             weighted = min(weighted, self.settings.decision_wait_score - 1)
             reasons.extend(signal.market_intelligence_reasons or [])

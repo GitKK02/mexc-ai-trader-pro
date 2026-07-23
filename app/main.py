@@ -99,6 +99,9 @@ def signal_text(signal: Signal) -> str:
         f"LONG {signal.market_breadth_long_percent:.1f}% / "
         f"SHORT {signal.market_breadth_short_percent:.1f}%\n"
         f"Market Intelligence: {signal.market_intelligence_score if signal.market_intelligence_score is not None else '—'}/100\n"
+        f"Market opportunity: {signal.market_opportunity_score if signal.market_opportunity_score is not None else '—'}/100 "
+        f"(rank {signal.market_opportunity_rank or '—'}, {signal.market_priority})\n"
+        f"Selected for trading: {'YES' if signal.market_opportunity_selected else 'NO'}\n"
         f"Energy: {signal.energy_score if signal.energy_score is not None else '—'}/100 | "
         f"Opportunity: {signal.opportunity_score if signal.opportunity_score is not None else '—'}/100\n"
         f"Opportunity state: {signal.opportunity_state} | "
@@ -593,14 +596,18 @@ async def market_status(message: Message):
         return
     leaders = ", ".join(snapshot.leaders) or "—"
     laggards = ", ".join(snapshot.laggards) or "—"
+    opportunities = "\n".join(
+        f"{index}. {item}" for index, item in enumerate(snapshot.top_opportunities, 1)
+    ) or "—"
     await message.answer(
-        "🌐 Market Intelligence\n\n"
-        f"Состояние: {snapshot.state}\n"
+        "🌐 Market Intelligence 2.0\n\n"
+        f"Состояние: {snapshot.state} ({snapshot.confidence}/100)\n"
         f"Проанализировано: {snapshot.total_count}\n"
         f"LONG: {snapshot.long_count} ({snapshot.long_percent:.1f}%)\n"
         f"SHORT: {snapshot.short_count} ({snapshot.short_percent:.1f}%)\n"
         f"Нейтральные/слабые: {snapshot.neutral_count}\n\n"
-        f"Лидеры: {leaders}\n"
+        f"🏆 Лучшие возможности:\n{opportunities}\n\n"
+        f"Лидеры силы: {leaders}\n"
         f"Отстающие: {laggards}"
     )
 

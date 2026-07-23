@@ -133,6 +133,12 @@ class Settings(BaseSettings):
     market_breadth_block_strong_opposite: bool = True
     relative_strength_percent_scale: float = 1.0
     relative_strength_min_confirm_score: int = 55
+    market_selection_enabled: bool = True
+    market_selection_top_n: int = 3
+    market_selection_min_score: int = 68
+    market_selection_enforced: bool = True
+    market_selection_trigger_bonus: int = 8
+    market_selection_ready_bonus: int = 5
 
     opportunity_engine_enabled: bool = True
     opportunity_building_score: int = 60

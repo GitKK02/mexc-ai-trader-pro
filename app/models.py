@@ -86,6 +86,10 @@ class Signal:
     market_intelligence_score: int | None = None
     market_intelligence_allowed: bool | None = None
     market_intelligence_reasons: list[str] | None = None
+    market_opportunity_score: int | None = None
+    market_opportunity_rank: int = 0
+    market_opportunity_selected: bool = False
+    market_priority: str = "NORMAL"
     energy_score: int | None = None
     opportunity_score: int | None = None
     opportunity_stage: str = "COLD"

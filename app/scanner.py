@@ -175,13 +175,14 @@ class Scanner:
             signals = [self.prediction_engine.attach(signal) for signal in signals]
         if self.settings.trigger_engine_enabled:
             signals = [self.trigger_engine.attach(signal) for signal in signals]
+        if self.settings.market_intelligence_enabled:
+            signals = self.market_intelligence.finalize_rankings(signals)
         signals.sort(
             key=lambda signal: (
-                signal.score * 0.75
-                + (signal.market_intelligence_score or signal.score) * 0.15
-                + (signal.opportunity_score or signal.score) * 0.07
-                + (signal.prediction_score or signal.score) * 0.02
-                + (signal.trigger_score or signal.score) * 0.01
+                (signal.market_opportunity_score or signal.score) * 0.70
+                + (signal.trigger_score or signal.score) * 0.15
+                + (signal.prediction_score or signal.score) * 0.10
+                + (signal.opportunity_score or signal.score) * 0.05
             ),
             reverse=True,
         )
