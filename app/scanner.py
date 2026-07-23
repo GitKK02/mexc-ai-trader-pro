@@ -14,6 +14,8 @@ from app.entry_intelligence import EntryIntelligence
 from app.confluence_engine import ConfluenceEngine
 from app.market_intelligence import MarketIntelligenceEngine
 from app.opportunity_engine import OpportunityEngine
+from app.prediction_engine import PredictionEngine
+from app.trigger_engine import TriggerEngine
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +36,8 @@ class Scanner:
         self.confluence_engine = ConfluenceEngine(settings)
         self.market_intelligence = MarketIntelligenceEngine(settings)
         self.opportunity_engine = OpportunityEngine(settings)
+        self.prediction_engine = PredictionEngine(settings)
+        self.trigger_engine = TriggerEngine(settings)
         self.near_signals: list[Signal] = []
         self.all_candidates: list[Signal] = []
         self._semaphore = asyncio.Semaphore(
@@ -167,11 +171,17 @@ class Scanner:
             signals = self.market_intelligence.attach_all(signals)
         if self.settings.opportunity_engine_enabled:
             signals = [self.opportunity_engine.attach(signal) for signal in signals]
+        if self.settings.prediction_engine_enabled:
+            signals = [self.prediction_engine.attach(signal) for signal in signals]
+        if self.settings.trigger_engine_enabled:
+            signals = [self.trigger_engine.attach(signal) for signal in signals]
         signals.sort(
             key=lambda signal: (
                 signal.score * 0.75
                 + (signal.market_intelligence_score or signal.score) * 0.15
-                + (signal.opportunity_score or signal.score) * 0.10
+                + (signal.opportunity_score or signal.score) * 0.07
+                + (signal.prediction_score or signal.score) * 0.02
+                + (signal.trigger_score or signal.score) * 0.01
             ),
             reverse=True,
         )

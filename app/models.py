@@ -94,6 +94,20 @@ class Signal:
     opportunity_direction: str = "NEUTRAL"
     opportunity_components: dict[str, int] | None = None
     opportunity_reasons: list[str] | None = None
+    prediction_score: int | None = None
+    breakout_readiness: int | None = None
+    false_breakout_risk: int | None = None
+    prediction_direction: str = "NEUTRAL"
+    prediction_state: str = "COLD"
+    prediction_horizon: str = "не определён"
+    prediction_components: dict[str, int] | None = None
+    prediction_reasons: list[str] | None = None
+    trigger_score: int | None = None
+    trigger_state: str = "COLD"
+    trigger_type: str = "NONE"
+    trigger_confirmed: bool = False
+    trigger_components: dict[str, int] | None = None
+    trigger_reasons: list[str] | None = None
 
 
 @dataclass(slots=True)

@@ -142,6 +142,26 @@ class Settings(BaseSettings):
     opportunity_released_momentum_percent: float = 1.60
     opportunity_heat_queue_max_items: int = 50
 
+    prediction_engine_enabled: bool = True
+    prediction_watch_score: int = 62
+    prediction_ready_score: int = 76
+    prediction_breakout_ready_score: int = 72
+    prediction_max_false_breakout_risk: int = 42
+    prediction_invalidation_risk: int = 68
+    prediction_min_relative_volume: float = 0.75
+    prediction_max_early_momentum_percent: float = 1.20
+
+    trigger_engine_enabled: bool = True
+    trigger_ready_score: int = 74
+    trigger_min_confirmations: int = 2
+    trigger_min_relative_volume: float = 0.90
+    trigger_min_directional_momentum_percent: float = 0.18
+    trigger_min_breakout_distance_percent: float = 0.03
+    trigger_min_prediction_acceleration: int = 2
+    trigger_min_momentum_acceleration_percent: float = 0.05
+    trigger_max_false_breakout_risk: int = 42
+    trigger_invalidation_risk: int = 68
+
     position_intelligence_enabled: bool = True
     position_intelligence_poll_seconds: int = 20
     position_intelligence_mode: str = "SHADOW"
