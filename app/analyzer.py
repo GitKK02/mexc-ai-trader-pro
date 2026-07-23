@@ -28,6 +28,11 @@ class TimeframeAnalysis:
     relative_volume: float
     momentum_percent: float
     bollinger_width_percent: float
+    atr_compression_ratio: float
+    ema_compression_percent: float
+    range_compression_ratio: float
+    volume_building_ratio: float
+    vwap_distance_percent: float
     latest_close: float
     breakout_level: float
     impulse_candles: int
@@ -59,6 +64,33 @@ def analyze_timeframe(
     average_volume = sum(volumes[-21:-1]) / 20 if len(volumes) >= 21 else 0
     relative_volume = volumes[-1] / average_volume if average_volume else 0
     momentum = (closes[-1] - closes[-5]) / closes[-5] * 100
+    previous_atr = atr(candles[:-5]) if len(candles) > 215 else atr_value
+    atr_compression_ratio = atr_value / previous_atr if previous_atr else 1.0
+    ema_compression_percent = (
+        abs(ema20_value - ema50_value) / last * 100 if last else 0.0
+    )
+    recent_high = max(float(item["high"]) for item in candles[-8:])
+    recent_low = min(float(item["low"]) for item in candles[-8:])
+    baseline_high = max(float(item["high"]) for item in candles[-28:-8])
+    baseline_low = min(float(item["low"]) for item in candles[-28:-8])
+    recent_range = recent_high - recent_low
+    baseline_range = baseline_high - baseline_low
+    range_compression_ratio = recent_range / baseline_range if baseline_range else 1.0
+    recent_volume = sum(volumes[-5:]) / 5
+    baseline_volume = sum(volumes[-25:-5]) / 20
+    volume_building_ratio = recent_volume / baseline_volume if baseline_volume else 1.0
+    typical_prices = [
+        (float(item["high"]) + float(item["low"]) + float(item["close"])) / 3
+        for item in candles[-20:]
+    ]
+    vwap_volume = sum(volumes[-20:])
+    vwap_value = (
+        sum(price * volume for price, volume in zip(typical_prices, volumes[-20:]))
+        / vwap_volume
+        if vwap_volume
+        else last
+    )
+    vwap_distance_percent = (last - vwap_value) / vwap_value * 100 if vwap_value else 0.0
     prior_high = max(float(item["high"]) for item in candles[-21:-1])
     prior_low = min(float(item["low"]) for item in candles[-21:-1])
     impulse_candles = 0
@@ -157,6 +189,11 @@ def analyze_timeframe(
         relative_volume=relative_volume,
         momentum_percent=momentum,
         bollinger_width_percent=width,
+        atr_compression_ratio=atr_compression_ratio,
+        ema_compression_percent=ema_compression_percent,
+        range_compression_ratio=range_compression_ratio,
+        volume_building_ratio=volume_building_ratio,
+        vwap_distance_percent=vwap_distance_percent,
         latest_close=last,
         breakout_level=prior_high if side == "LONG" else prior_low,
         impulse_candles=(
@@ -253,6 +290,11 @@ def combine_timeframes(
         "primary_bollinger_width_percent": round(
             primary.bollinger_width_percent, 3
         ),
+        "primary_atr_compression_ratio": round(primary.atr_compression_ratio, 3),
+        "primary_ema_compression_percent": round(primary.ema_compression_percent, 3),
+        "primary_range_compression_ratio": round(primary.range_compression_ratio, 3),
+        "primary_volume_building_ratio": round(primary.volume_building_ratio, 3),
+        "primary_vwap_distance_percent": round(primary.vwap_distance_percent, 3),
     }
 
     return Signal(

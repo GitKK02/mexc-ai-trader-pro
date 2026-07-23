@@ -13,6 +13,7 @@ from app.macro_guard import NewsMacroGuard
 from app.entry_intelligence import EntryIntelligence
 from app.confluence_engine import ConfluenceEngine
 from app.market_intelligence import MarketIntelligenceEngine
+from app.opportunity_engine import OpportunityEngine
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +33,7 @@ class Scanner:
         self.entry_intelligence = EntryIntelligence(settings)
         self.confluence_engine = ConfluenceEngine(settings)
         self.market_intelligence = MarketIntelligenceEngine(settings)
+        self.opportunity_engine = OpportunityEngine(settings)
         self.near_signals: list[Signal] = []
         self.all_candidates: list[Signal] = []
         self._semaphore = asyncio.Semaphore(
@@ -163,10 +165,13 @@ class Scanner:
             signals.append(signal)
         if self.settings.market_intelligence_enabled:
             signals = self.market_intelligence.attach_all(signals)
+        if self.settings.opportunity_engine_enabled:
+            signals = [self.opportunity_engine.attach(signal) for signal in signals]
         signals.sort(
             key=lambda signal: (
                 signal.score * 0.75
-                + (signal.market_intelligence_score or signal.score) * 0.25
+                + (signal.market_intelligence_score or signal.score) * 0.15
+                + (signal.opportunity_score or signal.score) * 0.10
             ),
             reverse=True,
         )

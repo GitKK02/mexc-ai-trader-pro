@@ -134,6 +134,14 @@ class Settings(BaseSettings):
     relative_strength_percent_scale: float = 1.0
     relative_strength_min_confirm_score: int = 55
 
+    opportunity_engine_enabled: bool = True
+    opportunity_building_score: int = 60
+    opportunity_charged_score: int = 78
+    opportunity_warm_score: int = 60
+    opportunity_hot_score: int = 80
+    opportunity_released_momentum_percent: float = 1.60
+    opportunity_heat_queue_max_items: int = 50
+
     position_intelligence_enabled: bool = True
     position_intelligence_poll_seconds: int = 20
     position_intelligence_mode: str = "SHADOW"

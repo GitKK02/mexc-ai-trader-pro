@@ -86,6 +86,14 @@ class Signal:
     market_intelligence_score: int | None = None
     market_intelligence_allowed: bool | None = None
     market_intelligence_reasons: list[str] | None = None
+    energy_score: int | None = None
+    opportunity_score: int | None = None
+    opportunity_stage: str = "COLD"
+    opportunity_state: str = "COLD"
+    opportunity_heat: str = "COLD"
+    opportunity_direction: str = "NEUTRAL"
+    opportunity_components: dict[str, int] | None = None
+    opportunity_reasons: list[str] | None = None
 
 
 @dataclass(slots=True)
