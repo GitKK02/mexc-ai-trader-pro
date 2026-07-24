@@ -168,6 +168,11 @@ class Settings(BaseSettings):
     trigger_max_false_breakout_risk: int = 42
     trigger_invalidation_risk: int = 68
 
+    learning_engine_enabled: bool = True
+    learning_database_path: str = "./data/learning.db"
+    learning_record_all_ranked_signals: bool = True
+    learning_sync_closed_limit: int = 1000
+
     position_intelligence_enabled: bool = True
     position_intelligence_poll_seconds: int = 20
     position_intelligence_mode: str = "SHADOW"

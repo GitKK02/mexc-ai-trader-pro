@@ -20,6 +20,7 @@ from app.portfolio_manager import PortfolioRiskManager
 from app.position_intelligence import DynamicPositionManager
 from app.position_actions import ConfirmedPositionActions
 from app.macro_guard import NewsMacroGuard
+from app.learning_engine import LearningEngine
 from app.scanner import Scanner
 from app.scanner_watchlist import ScannerWatchlist
 from app.whitelist_manager import LiveWhitelistManager
@@ -53,6 +54,10 @@ decision_engine = AIDecisionEngine(settings)
 confluence_engine = ConfluenceEngine(settings)
 dynamic_position_manager = DynamicPositionManager(settings)
 macro_guard = NewsMacroGuard(settings)
+learning_engine = LearningEngine(
+    settings.learning_database_path,
+    settings.learning_engine_enabled,
+)
 whitelist_manager = LiveWhitelistManager(
     settings, live_db, scanner.exchange, confirm_service.public_get
 )
@@ -241,6 +246,9 @@ async def send_scan(bot: Bot, chat_id: int, force: bool) -> None:
     if settings.decision_engine_enabled:
         signals = decision_engine.rank(signals)
     last_signals = signals
+    if settings.learning_record_all_ranked_signals:
+        for signal in signals:
+            learning_engine.record_signal(signal)
 
     near = scanner.near_signals
     if settings.scanner_watchlist_enabled:
@@ -573,6 +581,7 @@ async def paper_open(callback: CallbackQuery):
         await callback.answer("Сигнал устарел", show_alert=True); return
     try:
         p = paper.open_from_signal(signal)
+        learning_engine.attach_paper_position(signal, p)
         await callback.message.answer(f"PAPER-позиция #{p.id} открыта", reply_markup=position_actions(p.id))
     except Exception as exc:
         await callback.answer(str(exc), show_alert=True)
@@ -609,6 +618,29 @@ async def market_status(message: Message):
         f"🏆 Лучшие возможности:\n{opportunities}\n\n"
         f"Лидеры силы: {leaders}\n"
         f"Отстающие: {laggards}"
+    )
+
+
+@dispatcher.message(Command("learning"))
+@dispatcher.message(F.text == "🧠 Обучение")
+async def learning_status(message: Message):
+    if not allowed(message.from_user):
+        return
+    learning_engine.sync_closed_positions(
+        paper_db.recent_closed(settings.learning_sync_closed_limit)
+    )
+    summary = learning_engine.summary()
+    await message.answer(
+        "🧠 Learning Data Core v1.8.0\n\n"
+        f"Снимков сигналов: {summary.total_samples}\n"
+        f"Открыто PAPER: {summary.opened_samples}\n"
+        f"Закрыто с результатом: {summary.closed_samples}\n"
+        f"WIN / LOSS: {summary.wins} / {summary.losses}\n"
+        f"Win rate: {summary.win_rate:.1f}%\n"
+        f"Средний net PnL: {summary.average_pnl:+.2f} USDT\n"
+        f"Лучший подтверждённый setup: {summary.best_setup}\n\n"
+        "Версия 1.8.0 только собирает и проверяет данные; "
+        "веса стратегии автоматически не изменяются."
     )
 
 
