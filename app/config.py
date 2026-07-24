@@ -115,6 +115,17 @@ class Settings(BaseSettings):
     entry_min_quality_confirm: int = 60
     entry_quality_weight: float = 0.20
 
+    entry_optimizer_enabled: bool = True
+    entry_optimizer_enforced: bool = True
+    entry_optimizer_pullback_atr: float = 0.25
+    entry_optimizer_zone_half_atr: float = 0.12
+    entry_optimizer_skip_distance_atr: float = 0.90
+    entry_optimizer_max_impulse_candles: int = 4
+    entry_optimizer_chase_momentum_percent: float = 1.80
+    entry_optimizer_max_vwap_distance_percent: float = 1.20
+    entry_optimizer_invalidation_risk: int = 70
+    entry_optimizer_ttl_candles: int = 3
+
     confluence_engine_enabled: bool = True
     confluence_min_confirmations: int = 6
     confluence_min_scanner_score: int = 72

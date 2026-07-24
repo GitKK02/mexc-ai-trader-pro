@@ -190,6 +190,21 @@ class AIDecisionEngine:
             weighted += 4
             reasons.append("Точка входа находится в рабочей зоне")
 
+        optimizer_action = (signal.entry_optimizer_action or "NOT_EVALUATED").upper()
+        if getattr(self.settings, "entry_optimizer_enabled", True):
+            if optimizer_action == "ENTER_NOW":
+                weighted += 5
+                reasons.append("Entry Optimizer: вход разрешён сейчас")
+            elif optimizer_action in {"WAIT_PULLBACK", "WAIT_RETEST"}:
+                reasons.extend(signal.entry_optimizer_reasons or [])
+                if getattr(self.settings, "entry_optimizer_enforced", True):
+                    weighted = min(weighted, self.settings.decision_wait_score)
+                reasons.append(f"Entry Optimizer: {optimizer_action}")
+            elif optimizer_action in {"SKIP_CHASE", "INVALID"}:
+                reasons.extend(signal.entry_optimizer_reasons or [])
+                weighted = min(weighted, self.settings.decision_wait_score - 1)
+                reasons.append(f"Entry Optimizer запретил вход: {optimizer_action}")
+
         if signal.confluence_allowed is False:
             reasons.extend(signal.confluence_reasons or [])
             if getattr(self.settings, "confluence_block_below_minimum", True):

@@ -112,6 +112,16 @@ class Signal:
     trigger_confirmed: bool = False
     trigger_components: dict[str, int] | None = None
     trigger_reasons: list[str] | None = None
+    entry_optimizer_score: int | None = None
+    entry_optimizer_action: str = "NOT_EVALUATED"
+    entry_optimizer_recommended_price: float = 0.0
+    entry_optimizer_zone_low: float = 0.0
+    entry_optimizer_zone_high: float = 0.0
+    entry_optimizer_wait_atr: float = 0.0
+    entry_optimizer_wait_percent: float = 0.0
+    entry_optimizer_ttl_candles: int = 0
+    entry_optimizer_allowed_now: bool | None = None
+    entry_optimizer_reasons: list[str] | None = None
 
 
 @dataclass(slots=True)

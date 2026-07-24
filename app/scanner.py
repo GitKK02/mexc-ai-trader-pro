@@ -16,6 +16,7 @@ from app.market_intelligence import MarketIntelligenceEngine
 from app.opportunity_engine import OpportunityEngine
 from app.prediction_engine import PredictionEngine
 from app.trigger_engine import TriggerEngine
+from app.entry_optimizer import EntryOptimizer
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +39,7 @@ class Scanner:
         self.opportunity_engine = OpportunityEngine(settings)
         self.prediction_engine = PredictionEngine(settings)
         self.trigger_engine = TriggerEngine(settings)
+        self.entry_optimizer = EntryOptimizer(settings)
         self.near_signals: list[Signal] = []
         self.all_candidates: list[Signal] = []
         self._semaphore = asyncio.Semaphore(
@@ -175,6 +177,8 @@ class Scanner:
             signals = [self.prediction_engine.attach(signal) for signal in signals]
         if self.settings.trigger_engine_enabled:
             signals = [self.trigger_engine.attach(signal) for signal in signals]
+        if self.settings.entry_optimizer_enabled:
+            signals = [self.entry_optimizer.attach(signal) for signal in signals]
         if self.settings.market_intelligence_enabled:
             signals = self.market_intelligence.finalize_rankings(signals)
         signals.sort(
