@@ -217,6 +217,13 @@ class Settings(BaseSettings):
     smart_risk_max_margin_usage_percent: float = 15.0
     smart_risk_reject_if_min_contract_exceeds_risk: bool = True
 
+    position_optimizer_enabled: bool = True
+    position_optimizer_min_multiplier: float = 0.55
+    position_optimizer_neutral_multiplier: float = 1.00
+    position_optimizer_max_multiplier: float = 1.25
+    position_optimizer_normal_score: int = 72
+    position_optimizer_strong_score: int = 88
+
     volatility_guard_enabled: bool = True
     volatility_guard_panic_atr_percent: float = 5.0
     volatility_guard_extreme_move_percent: float = 3.0

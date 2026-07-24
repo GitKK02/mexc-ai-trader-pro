@@ -13,6 +13,7 @@ class SmartRiskRequest:
     atr_percent: Decimal
     leverage: int
     max_notional_usdt: Decimal
+    quality_multiplier: Decimal = Decimal("1")
 
 @dataclass(slots=True)
 class SmartRiskResult:
@@ -53,7 +54,8 @@ class SmartRiskEngine:
         base = Decimal(str(self.settings.smart_risk_base_percent))
         minimum = Decimal(str(self.settings.smart_risk_min_percent))
         maximum = Decimal(str(self.settings.smart_risk_max_percent))
-        risk_percent = max(minimum, min(base * mult, maximum))
+        quality = max(Decimal("0"), request.quality_multiplier)
+        risk_percent = max(minimum, min(base * mult * quality, maximum))
         budget = request.equity_usdt * risk_percent / Decimal("100")
 
         risk_per_contract = distance * spec.contract_size

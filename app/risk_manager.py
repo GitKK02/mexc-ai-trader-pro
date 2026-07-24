@@ -33,6 +33,10 @@ class TradePlan:
     risk_percent: Decimal = Decimal("0")
     margin_usage_percent: Decimal = Decimal("0")
     smart_risk_warnings: list[str] | None = None
+    position_optimizer_score: int = 0
+    position_optimizer_multiplier: Decimal = Decimal("1")
+    position_optimizer_tier: str = "NOT_EVALUATED"
+    position_optimizer_reasons: list[str] | None = None
 
 
 def floor_step(value: Decimal, step: Decimal) -> Decimal:

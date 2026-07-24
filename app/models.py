@@ -122,6 +122,12 @@ class Signal:
     entry_optimizer_ttl_candles: int = 0
     entry_optimizer_allowed_now: bool | None = None
     entry_optimizer_reasons: list[str] | None = None
+    position_optimizer_score: int | None = None
+    position_optimizer_multiplier: float = 1.0
+    position_optimizer_tier: str = "NOT_EVALUATED"
+    position_optimizer_allowed_to_scale_up: bool = False
+    position_optimizer_components: dict[str, int] | None = None
+    position_optimizer_reasons: list[str] | None = None
 
 
 @dataclass(slots=True)

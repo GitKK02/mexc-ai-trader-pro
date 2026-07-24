@@ -8,6 +8,7 @@ from app.live_exchange import MexcPrivateClient
 from app.risk_manager import ContractSpec, TradePlan, build_trade_plan
 from app.portfolio_manager import PortfolioRiskManager
 from app.smart_risk import SmartRiskEngine, SmartRiskRequest
+from app.position_optimizer import PositionOptimizer
 
 
 def floor_step(value: Decimal, step: Decimal) -> Decimal:
@@ -20,6 +21,7 @@ class MultiAssetConfirmService:
         self.db = live_db
         self.portfolio = PortfolioRiskManager(settings)
         self.smart_risk = SmartRiskEngine(settings)
+        self.position_optimizer = PositionOptimizer(settings)
         self.private = MexcPrivateClient(
             settings.mexc_base_url,
             settings.mexc_api_key,
@@ -188,6 +190,17 @@ class MultiAssetConfirmService:
             atr_percent = Decimal(str(
                 (signal.diagnostics or {}).get("primary_atr_percent", 0)
             ))
+            quality_multiplier = Decimal("1")
+            optimization = None
+            if self.settings.position_optimizer_enabled:
+                optimization = self.position_optimizer.assess(signal)
+                signal.position_optimizer_score = optimization.score
+                signal.position_optimizer_multiplier = optimization.multiplier
+                signal.position_optimizer_tier = optimization.tier
+                signal.position_optimizer_allowed_to_scale_up = optimization.allowed_to_scale_up
+                signal.position_optimizer_components = optimization.components
+                signal.position_optimizer_reasons = optimization.reasons
+                quality_multiplier = Decimal(str(optimization.multiplier))
             smart = self.smart_risk.calculate(
                 SmartRiskRequest(
                     equity_usdt=equity,
@@ -198,6 +211,7 @@ class MultiAssetConfirmService:
                     max_notional_usdt=Decimal(
                         str(self.settings.live_max_notional_usdt)
                     ),
+                    quality_multiplier=quality_multiplier,
                 ),
                 spec,
             )
@@ -285,6 +299,11 @@ class MultiAssetConfirmService:
             plan.risk_percent = smart.risk_percent
             plan.margin_usage_percent = smart.margin_usage_percent
             plan.smart_risk_warnings = smart.warnings
+            if optimization is not None:
+                plan.position_optimizer_score = optimization.score
+                plan.position_optimizer_multiplier = Decimal(str(optimization.multiplier))
+                plan.position_optimizer_tier = optimization.tier
+                plan.position_optimizer_reasons = optimization.reasons
             return plan
 
         return build_trade_plan(
