@@ -140,7 +140,11 @@ def signal_text(signal: Signal) -> str:
         f"Группа: {signal.portfolio_group or '—'}\n"
         f"ИИ: {signal.ai_decision}"
         f"{' — ' + signal.ai_summary if signal.ai_summary else ''}\n\n"
-        f"Вход: {signal.entry:.8g}\nSL: {signal.stop_loss:.8g}\n"
+        f"Dynamic Stop: {signal.dynamic_stop_strategy} "
+        f"({signal.dynamic_stop_score if signal.dynamic_stop_score is not None else '—'}/100)\n"
+        f"SL: {signal.stop_loss:.8g} | {signal.dynamic_stop_distance_atr:.2f} ATR "
+        f"({signal.dynamic_stop_distance_percent:.2f}%), RR TP1 {signal.dynamic_stop_rr_tp1:.2f}\n"
+        f"Вход: {signal.entry:.8g}\n"
         f"TP1: {signal.tp1:.8g}\nTP2: {signal.tp2:.8g}\n\n"
         f"Причины:\n{reasons}"
     )

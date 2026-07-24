@@ -128,6 +128,15 @@ class Signal:
     position_optimizer_allowed_to_scale_up: bool = False
     position_optimizer_components: dict[str, int] | None = None
     position_optimizer_reasons: list[str] | None = None
+    dynamic_stop_price: float = 0.0
+    dynamic_stop_strategy: str = "NOT_EVALUATED"
+    dynamic_stop_score: int | None = None
+    dynamic_stop_distance_atr: float = 0.0
+    dynamic_stop_distance_percent: float = 0.0
+    dynamic_stop_rr_tp1: float = 0.0
+    dynamic_stop_allowed: bool | None = None
+    dynamic_stop_candidates: dict[str, float] | None = None
+    dynamic_stop_reasons: list[str] | None = None
 
 
 @dataclass(slots=True)

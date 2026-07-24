@@ -224,6 +224,16 @@ class Settings(BaseSettings):
     position_optimizer_normal_score: int = 72
     position_optimizer_strong_score: int = 88
 
+    dynamic_stop_enabled: bool = True
+    dynamic_stop_enforced: bool = True
+    dynamic_stop_atr_multiplier: float = 1.20
+    dynamic_stop_structure_buffer_atr: float = 0.18
+    dynamic_stop_ema_buffer_atr: float = 0.15
+    dynamic_stop_vwap_buffer_atr: float = 0.12
+    dynamic_stop_min_distance_atr: float = 0.55
+    dynamic_stop_max_distance_atr: float = 2.20
+    dynamic_stop_min_rr_tp1: float = 0.70
+
     volatility_guard_enabled: bool = True
     volatility_guard_panic_atr_percent: float = 5.0
     volatility_guard_extreme_move_percent: float = 3.0
